@@ -1,0 +1,2887 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Chấm bài trắc nghiệm tự động - Trường CĐ Công Nghệ Cao Hà Nội</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js" onerror="window.SHEETJS_FAILED=true"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" onerror="window.TESSERACT_FAILED=true"></script>
+<style>
+  /* ========== GLASSMORPHISM DESIGN — TIMES NEW ROMAN ========== */
+  /* Friendly for elderly readers: large fonts, high contrast, soft pastel glass */
+  :root {
+    --text: #1a1a2e;
+    --text-mute: #4a4a68;
+    --text-soft: #6b6b8a;
+    --accent: #4f46e5;          /* royal indigo */
+    --accent-hover: #4338ca;
+    --accent-soft: #e0e7ff;
+    --warm: #d97706;            /* warm gold for important actions */
+    --warm-soft: #fef3c7;
+    --ok: #047857;
+    --ok-soft: #d1fae5;
+    --err: #b91c1c;
+    --err-soft: #fee2e2;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --glass: rgba(255, 255, 255, 0.62);
+    --glass-strong: rgba(255, 255, 255, 0.82);
+    --glass-soft: rgba(255, 255, 255, 0.38);
+    --glass-border: rgba(255, 255, 255, 0.7);
+    --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.12);
+    --primary: #4f46e5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+  body {
+    font-family: 'Times New Roman', 'Liberation Serif', Times, serif;
+    font-size: 18px;
+    line-height: 1.7;
+    color: var(--text);
+    background: linear-gradient(135deg,
+      #ddd6fe 0%,      /* soft purple */
+      #fbcfe8 35%,     /* soft pink */
+      #fed7aa 70%,     /* soft peach */
+      #fef3c7 100%);   /* soft yellow */
+    background-attachment: fixed;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Decorative blurred orbs in the background for visual depth */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -10%; left: -5%;
+    width: 380px; height: 380px;
+    background: radial-gradient(circle, rgba(167, 139, 250, 0.4) 0%, transparent 70%);
+    filter: blur(40px);
+    z-index: 0;
+    pointer-events: none;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -10%; right: -5%;
+    width: 420px; height: 420px;
+    background: radial-gradient(circle, rgba(251, 146, 60, 0.35) 0%, transparent 70%);
+    filter: blur(40px);
+    z-index: 0;
+    pointer-events: none;
+  }
+  ::selection { background: rgba(79, 70, 229, 0.25); color: var(--text); }
+  /* HEADER ============================================= */
+  header {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.85), rgba(168, 85, 247, 0.75));
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    color: #fff;
+    padding: 32px 40px 28px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 24px rgba(79, 70, 229, 0.18);
+    position: relative;
+    z-index: 1;
+  }
+  header h1 {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 700;
+    font-size: clamp(34px, 4.5vw, 52px);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  header h1 .accent { color: #fde68a; font-style: italic; }
+  header p {
+    font-size: 17px;
+    margin: 12px 0 0;
+    color: rgba(255, 255, 255, 0.92);
+    font-style: italic;
+    font-weight: 400;
+  }
+  /* TABS ============================================= */
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: var(--glass);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1.5px solid var(--glass-border);
+    padding: 14px 30px;
+    overflow-x: auto;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: var(--glass-shadow);
+  }
+  .tab {
+    padding: 12px 22px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    border-radius: 14px;
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 600;
+    font-size: 17px;
+    color: var(--text);
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .tab:hover {
+    background: rgba(255, 255, 255, 0.85);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.15);
+  }
+  .tab.active {
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+  }
+  /* PANELS ============================================= */
+  .panel { display: none; padding: 32px 40px; max-width: 1320px; margin: 0 auto; position: relative; z-index: 1; }
+  .panel.active { display: block; }
+  @media (max-width: 700px) { .panel { padding: 22px 16px; } }
+  /* CARDS — Glass effect ============================== */
+  .card {
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1.5px solid var(--glass-border);
+    border-radius: 22px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    box-shadow: var(--glass-shadow);
+    position: relative;
+  }
+  .card h2 {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 700;
+    font-size: 28px;
+    line-height: 1.2;
+    margin: 0 0 18px;
+    padding-bottom: 14px;
+    color: var(--text);
+    border-bottom: 1.5px solid rgba(79, 70, 229, 0.2);
+  }
+  .card h3 {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 600;
+    font-size: 20px;
+    margin: 20px 0 10px;
+    color: var(--accent);
+  }
+  /* LAYOUT ============================================= */
+  .row { display: flex; gap: 18px; flex-wrap: wrap; }
+  .col { flex: 1; min-width: 220px; }
+  .flex { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+  /* LABELS & INPUTS — Large for elderly =============== */
+  label {
+    display: block;
+    margin: 12px 0 6px;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  input[type=text],
+  input[type=number],
+  input[type=file],
+  select,
+  textarea {
+    width: 100%;
+    padding: 14px 18px;
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 18px;
+    color: var(--text);
+    outline: none;
+    transition: all 0.2s;
+  }
+  input[type=text]:focus,
+  input[type=number]:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+  }
+  textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+  /* BUTTONS — Big, glass, soft ========================= */
+  button {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 600;
+    font-size: 17px;
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.95), rgba(124, 58, 237, 0.9));
+    color: #fff;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    padding: 12px 22px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    backdrop-filter: blur(10px);
+  }
+  button:hover {
+    transform: translateY(-1.5px);
+    box-shadow: 0 8px 22px rgba(79, 70, 229, 0.35);
+    filter: brightness(1.08);
+  }
+  button:active { transform: translateY(0); }
+  button.secondary {
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--accent);
+    border-color: rgba(79, 70, 229, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+  button.secondary:hover {
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--accent-hover);
+  }
+  button.success {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+  button.success:hover {
+    box-shadow: 0 8px 22px rgba(16, 185, 129, 0.4);
+  }
+  button.danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  }
+  button.warning {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  }
+  button:disabled {
+    background: rgba(180, 180, 200, 0.5);
+    color: rgba(255, 255, 255, 0.7);
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+  button.small { padding: 8px 14px; font-size: 14px; border-radius: 10px; }
+  button.big { padding: 16px 32px; font-size: 20px; border-radius: 16px; font-weight: 700; }
+  /* KEY LIST =========================================== */
+  .key-list { margin-top: 14px; }
+  .key-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(12px);
+    border: 1.5px solid rgba(255, 255, 255, 0.65);
+    border-radius: 16px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    transition: all 0.2s;
+  }
+  .key-item:hover {
+    background: rgba(255, 255, 255, 0.75);
+    transform: translateX(2px);
+  }
+  .key-item .code {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--accent);
+    min-width: 110px;
+    font-style: italic;
+  }
+  .key-item .answers {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 16px;
+    color: var(--text);
+    flex: 1;
+    word-break: break-all;
+    line-height: 1.8;
+    letter-spacing: 1px;
+  }
+  /* BADGES ============================================= */
+  .badge {
+    display: inline-block;
+    padding: 5px 12px;
+    background: rgba(79, 70, 229, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(79, 70, 229, 0.3);
+    border-radius: 20px;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  /* CANVAS ============================================= */
+  .canvas-wrap {
+    position: relative;
+    display: inline-block;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+    max-width: 100%;
+    overflow: auto;
+    box-shadow: var(--glass-shadow);
+  }
+  canvas { display: block; max-width: 100%; cursor: crosshair; border-radius: 16px; }
+  /* ALERT BOXES (hint/ok/err/info) ====================== */
+  .hint, .ok-box, .err-box, .info-box {
+    backdrop-filter: blur(14px);
+    border-radius: 16px;
+    padding: 16px 22px;
+    font-size: 17px;
+    margin: 16px 0;
+    font-weight: 500;
+    line-height: 1.65;
+    border: 1.5px solid;
+  }
+  .hint {
+    background: rgba(252, 211, 77, 0.32);
+    border-color: rgba(217, 119, 6, 0.4);
+    color: #78350f;
+  }
+  .ok-box {
+    background: rgba(167, 243, 208, 0.42);
+    border-color: rgba(5, 150, 105, 0.4);
+    color: #064e3b;
+  }
+  .err-box {
+    background: rgba(254, 202, 202, 0.45);
+    border-color: rgba(220, 38, 38, 0.4);
+    color: #7f1d1d;
+  }
+  .info-box {
+    background: rgba(199, 210, 254, 0.45);
+    border-color: rgba(79, 70, 229, 0.4);
+    color: #1e1b4b;
+  }
+  /* TABLES ============================================= */
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 16px;
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(12px);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--glass-shadow);
+  }
+  th, td {
+    padding: 13px 16px;
+    border-bottom: 1px solid rgba(79, 70, 229, 0.12);
+    text-align: left;
+    vertical-align: middle;
+  }
+  th {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.85), rgba(124, 58, 237, 0.8));
+    color: #fff;
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 700;
+    font-size: 16px;
+    position: sticky;
+    top: 0;
+  }
+  tr:nth-child(even) td { background: rgba(255, 255, 255, 0.4); }
+  tr:hover td { background: rgba(255, 255, 255, 0.7); }
+  .score-high { color: var(--ok); font-weight: 700; font-size: 20px; }
+  .score-low { color: var(--err); font-weight: 700; font-size: 20px; }
+  .score-mid { color: var(--warn); font-weight: 700; font-size: 20px; }
+  /* SMALL TEXT ========================================= */
+  .small {
+    font-size: 15px;
+    color: var(--text-mute);
+    font-family: 'Times New Roman', Times, serif;
+    font-style: italic;
+  }
+  /* SUB-TABS =========================================== */
+  .tab-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .tab-tab {
+    padding: 10px 18px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    border-radius: 12px;
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text-mute);
+    transition: all 0.2s;
+  }
+  .tab-tab:hover { background: rgba(255, 255, 255, 0.8); color: var(--accent); }
+  .tab-tab.active {
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 3px 10px rgba(79, 70, 229, 0.3);
+  }
+  /* TICK GRID (answer key tick UI) ====================== */
+  .tick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 8px;
+    margin: 14px 0;
+  }
+  .tick-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    border-radius: 14px;
+  }
+  .tick-row .qnum {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 700;
+    min-width: 60px;
+    font-size: 17px;
+    color: var(--text);
+  }
+  .tick-btn {
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--text);
+    border: 1.5px solid rgba(79, 70, 229, 0.25);
+    padding: 6px 14px;
+    cursor: pointer;
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 700;
+    font-size: 17px;
+    min-width: 38px;
+    border-radius: 10px;
+    transition: all 0.15s;
+  }
+  .tick-btn:hover {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: var(--accent);
+  }
+  .tick-btn.selected {
+    background: linear-gradient(135deg, var(--ok), #059669);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.35);
+  }
+  /* STUDENT TABLE ====================================== */
+  .stu-table-wrap {
+    max-height: 420px;
+    overflow: auto;
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(12px);
+  }
+  .stu-table { font-size: 15px; }
+  .stu-table tr.has-score { background: rgba(167, 243, 208, 0.4) !important; }
+  .stu-table tr.has-score td { background: rgba(167, 243, 208, 0.4); }
+  /* STUDENT PICKER ==================================== */
+  .stu-picker-wrap { position: relative; }
+  .stu-suggestions {
+    position: absolute;
+    top: 100%; left: 0; right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1.5px solid rgba(79, 70, 229, 0.3);
+    border-top: none;
+    border-radius: 0 0 14px 14px;
+    max-height: 280px;
+    overflow-y: auto;
+    z-index: 100;
+    display: none;
+    box-shadow: 0 12px 32px rgba(31, 38, 135, 0.18);
+  }
+  .stu-suggestions.open { display: block; }
+  .stu-suggestion {
+    padding: 13px 18px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    font-size: 17px;
+    font-weight: 500;
+  }
+  .stu-suggestion:hover,
+  .stu-suggestion.highlight { background: rgba(199, 210, 254, 0.55); }
+  .stu-suggestion.used {
+    background: rgba(254, 240, 138, 0.4);
+    color: var(--text-mute);
+    font-style: italic;
+  }
+  .stu-suggestion .meta {
+    font-size: 14px;
+    color: var(--text-mute);
+    display: block;
+    font-style: italic;
+    margin-top: 3px;
+  }
+  .stu-suggestion .conf {
+    display: inline-block;
+    background: var(--ok);
+    color: white;
+    padding: 2px 10px;
+    font-size: 13px;
+    margin-left: 8px;
+    border-radius: 12px;
+    font-weight: 600;
+  }
+  .stu-suggestion .conf.low { background: var(--warn); }
+  /* PROGRESS BAR ====================================== */
+  .progress {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    height: 14px;
+    overflow: hidden;
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+  }
+  .progress > div {
+    background: linear-gradient(90deg, var(--accent), #7c3aed);
+    height: 100%;
+    transition: width 0.3s;
+  }
+  /* FILE DROP ========================================= */
+  .file-drop {
+    border: 2.5px dashed rgba(79, 70, 229, 0.4);
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(12px);
+    transition: all 0.2s;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 18px;
+    border-radius: 18px;
+  }
+  .file-drop:hover,
+  .file-drop.dragover {
+    border-color: var(--accent);
+    background: rgba(199, 210, 254, 0.55);
+    transform: scale(1.01);
+  }
+  /* STATUS PILLS ====================================== */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(255, 255, 255, 0.7);
+    border-radius: 20px;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .status-pill .dot {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--text-mute);
+    box-shadow: 0 0 8px currentColor;
+  }
+  .status-pill.ok .dot { background: var(--ok); color: var(--ok); }
+  .status-pill.err .dot { background: var(--err); color: var(--err); }
+  .status-pill.busy .dot { background: var(--warm); color: var(--warm); animation: pulse 1.2s infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2.5px solid rgba(79, 70, 229, 0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: -3px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* AUTO BANNER (hero box) ============================ */
+  .auto-banner {
+    background: linear-gradient(135deg,
+      rgba(79, 70, 229, 0.92),
+      rgba(168, 85, 247, 0.85),
+      rgba(236, 72, 153, 0.8));
+    backdrop-filter: blur(20px) saturate(180%);
+    color: #fff;
+    padding: 28px 32px;
+    margin-bottom: 22px;
+    border-radius: 22px;
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 12px 36px rgba(79, 70, 229, 0.25);
+  }
+  .auto-banner h3 {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 700;
+    font-size: 26px;
+    margin: 0 0 14px;
+    color: #fef3c7;
+    font-style: italic;
+  }
+  .feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 17px;
+    line-height: 1.6;
+    color: #fff;
+  }
+  /* ANSWER GRID (chips per question) ============= */
+  .answer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .answer-cell {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    padding: 9px 12px;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    border: 1.5px solid rgba(255, 255, 255, 0.7);
+    border-radius: 11px;
+  }
+  .answer-cell.right { background: rgba(167, 243, 208, 0.5); color: #064e3b; border-color: rgba(5, 150, 105, 0.4); }
+  .answer-cell.wrong { background: rgba(254, 202, 202, 0.55); color: #7f1d1d; border-color: rgba(220, 38, 38, 0.4); }
+  .answer-cell.blank { background: rgba(252, 211, 77, 0.45); color: #78350f; border-color: rgba(217, 119, 6, 0.4); }
+  /* EDITABLE GRADE GRID ================================ */
+  .edit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 6px;
+    max-height: 540px;
+    overflow-y: auto;
+    padding: 12px;
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(10px);
+  }
+  .edit-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1.5px solid rgba(255, 255, 255, 0.7);
+    border-radius: 12px;
+    font-size: 15px;
+  }
+  .edit-row.right { background: rgba(167, 243, 208, 0.55); border-color: rgba(5, 150, 105, 0.3); }
+  .edit-row.wrong { background: rgba(254, 202, 202, 0.55); border-color: rgba(220, 38, 38, 0.3); }
+  .edit-row.blank { background: rgba(252, 211, 77, 0.45); border-color: rgba(217, 119, 6, 0.3); }
+  .edit-row .qn {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 700;
+    min-width: 38px;
+    font-size: 16px;
+    color: var(--text);
+  }
+  .edit-row .ec {
+    padding: 5px 13px;
+    border: 1.5px solid rgba(79, 70, 229, 0.3);
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 700;
+    font-size: 16px;
+    min-width: 36px;
+    border-radius: 8px;
+  }
+  .edit-row .ec:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: var(--accent);
+  }
+  .edit-row .ec.sel {
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    color: #fff;
+    border-color: transparent;
+  }
+  .edit-row .ec[data-key="1"] {
+    box-shadow: inset 0 -3px 0 var(--ok);
+  }
+  .edit-row .ec.blank { font-size: 18px; padding: 3px 11px; }
+  .edit-row .hint-key {
+    font-size: 13px;
+    color: var(--text-mute);
+    margin-left: 8px;
+    font-style: italic;
+  }
+  /* NAME CROP ========================================= */
+  .name-crop {
+    border: 2.5px solid rgba(79, 70, 229, 0.5);
+    border-radius: 14px;
+    max-width: 100%;
+    height: auto;
+    background: #fff;
+    display: block;
+    box-shadow: 0 4px 14px rgba(31, 38, 135, 0.12);
+  }
+  /* SCROLLBAR STYLING (subtle, glass-like) ============ */
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.3); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(79, 70, 229, 0.4);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(79, 70, 229, 0.65); background-clip: padding-box; }
+  /* SECTION MARKERS (data-section attribute) ========== */
+  .panel.active::before {
+    content: attr(data-section);
+    display: block;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 15px;
+    font-style: italic;
+    color: rgba(79, 70, 229, 0.75);
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+  }
+  /* Tooltip override (browser default cursor for [title]) */
+  [title] { cursor: help; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Chấm trắc nghiệm<br><span class="accent">tự động</span></h1>
+  <p>v3.0 — Trường CĐ Công Nghệ Cao Hà Nội · OCR + Per-cell · Blue-ink filter · Fuzzy match</p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="setup">01 / Cài đặt</div>
+  <div class="tab" data-tab="class">02 / Danh sách lớp</div>
+  <div class="tab" data-tab="keys">03 / Đáp án</div>
+  <div class="tab" data-tab="grade">04 / Chấm bài</div>
+  <div class="tab" data-tab="results">05 / Kết quả</div>
+  <div class="tab" data-tab="help">? / Hướng dẫn</div>
+</div>
+
+<!-- TAB 1: SETUP -->
+<div class="panel active" id="panel-setup" data-section="Bước 01 — Thiết lập kỳ thi">
+  <div class="card">
+    <h2>Cấu hình bài kiểm tra</h2>
+    <div class="row">
+      <div class="col">
+        <label>Tên bài kiểm tra</label>
+        <input type="text" id="examName" value="Bài KT Tin học - Đề 02">
+      </div>
+      <div class="col">
+        <label>Số câu hỏi</label>
+        <input type="number" id="numQ" value="30" min="1" max="50" onchange="onConfigChange()">
+      </div>
+      <div class="col">
+        <label>Thang điểm</label>
+        <input type="number" id="maxScore" value="10" min="1" max="100" step="0.5">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Trạng thái các module tự động</h2>
+    <div id="modulesStatus"></div>
+    <div class="hint">Lần đầu mở app cần internet để tải module OCR tiếng Việt (~6MB). Sau đó có thể dùng offline.</div>
+  </div>
+</div>
+
+<!-- TAB 2: CLASS LIST -->
+<div class="panel" id="panel-class" data-section="Bước 02 — Danh sách sinh viên">
+  <div class="card">
+    <h2>Tải lên danh sách lớp</h2>
+    <div class="hint">
+      File <b>.xlsx</b> hoặc <b>.csv</b>, có cột "Họ tên" hoặc "Họ và tên". File này dùng để:<br>
+      <b>1.</b> Auto-match tên SV viết tay khi chấm bài.<br>
+      <b>2.</b> Lưu điểm vào đúng dòng SV → xuất file giữ nguyên cấu trúc.
+    </div>
+    <div class="file-drop" id="classDrop" onclick="document.getElementById('classFile').click()">
+      <div style="font-size:26px">📋</div>
+      <div><b>Click hoặc kéo thả file vào đây</b></div>
+      <div class="small">.xlsx / .csv</div>
+    </div>
+    <input type="file" id="classFile" accept=".csv,.xlsx,.xls" style="display:none" onchange="loadClassFile(event)">
+    <div id="classListInfo"></div>
+  </div>
+  <div class="card" id="classListBox" style="display:none">
+    <h2>Danh sách sinh viên</h2>
+    <div class="small" style="margin-bottom:6px">Đã chấm: <span id="classProgress">0/0</span></div>
+    <div class="progress"><div id="classProgressBar" style="width:0%"></div></div>
+    <div class="stu-table-wrap"><div id="classListTable"></div></div>
+  </div>
+</div>
+
+<!-- TAB 3: KEYS -->
+<div class="panel" id="panel-keys" data-section="Bước 03 — Nhập đáp án mã đề">
+  <div class="card">
+    <h2>Thêm mã đề & đáp án</h2>
+    <div class="row">
+      <div class="col" style="max-width:200px">
+        <label>Mã đề mới</label>
+        <input type="text" id="newCode" placeholder="VD: 01, 02..." value="02">
+      </div>
+    </div>
+    <div class="tab-tabs" style="margin-top:12px">
+      <div class="tab-tab active" data-sub="tick">A. Tick đáp án</div>
+      <div class="tab-tab" data-sub="image">B. Quét từ ảnh</div>
+      <div class="tab-tab" data-sub="text">C. Gõ chuỗi A/B/C/D</div>
+    </div>
+
+    <div class="sub-panel active" id="sub-tick">
+      <div class="hint">Click chữ A/B/C/D để chọn đáp án đúng. Click lại để bỏ.</div>
+      <div class="flex" style="margin-bottom:8px">
+        <button class="secondary small" onclick="clearTickGrid()">Xoá hết</button>
+        <span class="small">Đã tick: <b id="tickCount">0</b>/<span id="tickTotal">30</span></span>
+      </div>
+      <div id="tickGrid" class="tick-grid"></div>
+      <div style="margin-top:12px">
+        <button class="success" onclick="saveTickedKey()">💾 Lưu mã đề này</button>
+      </div>
+    </div>
+
+    <div class="sub-panel" id="sub-image" style="display:none">
+      <div class="hint">Upload ảnh đáp án (bảng có số câu + chữ A/B/C/D in sẵn). App tự OCR mỗi ô — <b>0 click</b>.</div>
+      <input type="file" id="keyImgFile" accept="image/*" onchange="loadKeyImage(event)">
+      <div id="keyImgBox" style="display:none;margin-top:12px"></div>
+    </div>
+
+    <div class="sub-panel" id="sub-text" style="display:none">
+      <div class="hint">Gõ chuỗi đáp án: ABCDABCD... hoặc cách nhau dấu cách.</div>
+      <textarea id="newAnswers" placeholder="VD: CBADBCDCBADCDADACACDBABBAABDAD"></textarea>
+      <div style="margin-top:8px">
+        <button class="success" onclick="saveTextKey()">💾 Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Danh sách mã đề</h2>
+    <div class="key-list" id="keyList"><div class="small">Chưa có mã đề nào.</div></div>
+  </div>
+</div>
+
+<!-- TAB 4: GRADE (FULLY AUTO) -->
+<div class="panel" id="panel-grade" data-section="Bước 04 — Chấm bài tự động">
+  <div class="auto-banner">
+    <h3>⚡ Chế độ tự động hoàn toàn</h3>
+    <div class="feature">✓ <b>Định vị grid bằng OCR số câu</b> (1, 2, 3..., 25) làm điểm neo — chống lệch khi ảnh nghiêng/cong</div>
+    <div class="feature">✓ <b>Tự đọc tên SV viết tay</b> (Tesseract OCR + fuzzy match danh sách lớp)</div>
+    <div class="feature">✓ <b>Tự chấm điểm</b> theo mã đề đã có; nhận diện X và ô tô đen riêng biệt</div>
+    <div class="feature">→ Thầy chỉ cần upload ảnh → kiểm tra → bấm <b>Lưu</b>. Mỗi phiếu ~10-15 giây.</div>
+  </div>
+
+  <div class="card">
+    <h2>Tải ảnh phiếu trắc nghiệm</h2>
+    <div class="row">
+      <div class="col">
+        <label>Mã đề (chọn trước khi tải ảnh)</label>
+        <select id="gradeCode"><option value="">-- Chọn mã đề --</option></select>
+      </div>
+      <div class="col">
+        <label>Tải ảnh phiếu SV (có thể nhiều file)</label>
+        <input type="file" id="stuFile" accept="image/*" multiple onchange="loadStudentImages(event)">
+      </div>
+    </div>
+    <div id="queueInfo" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card" id="stuBox" style="display:none">
+    <h2>Kết quả chấm <span id="queuePos" class="small"></span></h2>
+    <div id="autoStatus" class="flex" style="margin-bottom:8px"></div>
+
+    <div class="canvas-wrap"><canvas id="stuCanvas"></canvas></div>
+
+    <div id="manualCalibBox" style="display:none;margin-top:8px">
+      <div class="hint" id="calibHint">Auto-detect không thành công. Vui lòng click thủ công các điểm hiệu chỉnh.</div>
+      <div class="flex">
+        <span class="small">Đã click: <b id="clickCount">0</b>/<span id="needCount">2</span></span>
+        <button class="secondary small" onclick="resetCalib()">↻ Click lại</button>
+        <button class="warning small" onclick="manualGrade()">Chấm với điểm đã click</button>
+      </div>
+    </div>
+
+    <div id="gradeResult"></div>
+  </div>
+</div>
+
+<!-- TAB 5: RESULTS -->
+<div class="panel" id="panel-results" data-section="Bước 05 — Bảng điểm & Xuất file">
+  <div class="card">
+    <h2>Bảng điểm tổng hợp</h2>
+    <div class="flex" style="margin-bottom:8px">
+      <button class="success" onclick="exportXLSX()">⬇ Tải file Excel (.xlsx)</button>
+      <button class="secondary" onclick="exportCSV()">⬇ Tải CSV</button>
+      <button class="secondary" onclick="copyTSV()">📋 Copy → paste vào Google Sheet</button>
+      <button class="danger small" onclick="clearResults()">🗑 Xoá toàn bộ</button>
+    </div>
+    <div id="resultsBox"></div>
+  </div>
+</div>
+
+<!-- HELP -->
+<div class="panel" id="panel-help" data-section="Hướng dẫn sử dụng & FAQ">
+  <div class="card">
+    <h2>Hướng dẫn nhanh</h2>
+    <ol>
+      <li><b>Cài đặt</b> (tab 1): đặt tên + số câu (30).</li>
+      <li><b>Danh sách lớp</b> (tab 2): upload file .xlsx hoặc .csv của lớp.</li>
+      <li><b>Đáp án</b> (tab 3): tick đáp án từng câu cho mỗi mã đề → bấm Lưu.</li>
+      <li><b>Chấm bài</b> (tab 4): chọn mã đề, upload <b>nhiều ảnh phiếu cùng lúc</b>. App tự chấm + đọc tên + ghép danh sách. Thầy chỉ cần kiểm và bấm <b>Lưu</b> cho từng phiếu.</li>
+      <li><b>Xuất file</b> (tab 5): tải file Excel cuối cùng.</li>
+    </ol>
+    <h3>Mức độ tự động</h3>
+    <ul>
+      <li><b>Auto-detect lưới</b>: ~90-95% phiếu chụp/scan thẳng → 0 click. Nếu nghiêng nhiều hoặc mờ → cần click thủ công 2-4 điểm.</li>
+      <li><b>Auto-OCR tên</b>: ~60-80% trường hợp đoán đúng SV ngay từ đầu. Khi không chắc, app gợi ý top 3 → thầy chọn 1 click.</li>
+      <li><b>Auto chấm điểm</b>: ~100% chính xác nếu phiếu rõ nét và lưới detect đúng.</li>
+    </ul>
+    <h3>Mẹo để app làm việc tốt nhất</h3>
+    <ul>
+      <li>Scan/chụp <b>thẳng góc</b>, đủ sáng, nền sạch.</li>
+      <li>SV viết tên <b>rõ ràng</b> trong vùng quy định.</li>
+      <li>Khi tên viết quá ẩu → app vẫn cho thầy chọn từ dropdown.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  keys: {},
+  classList: { headers: [], rows: [], nameIdx: -1, classIdx: -1 },
+  results: [],
+  tickedAnswers: [],
+  keyImg: null, keyPoints: [],
+  stuImg: null, stuPoints: [],
+  calibTemplate: null,  // {points: [{xr,yr}], aspectRatio}
+  uploadQueue: [],      // pending student images
+  queueIdx: 0,
+  currentSheet: null,   // {fileName, score, correct, total, detail, nameCrop, suggestions, autoMode}
+  ocrWorker: null,
+  selectedRowIdx: null,
+};
+
+// ============================================================
+// MODULE STATUS CHECK
+// ============================================================
+function renderModulesStatus() {
+  const xlsxOk = typeof XLSX !== 'undefined' && !window.SHEETJS_FAILED;
+  const tessOk = typeof Tesseract !== 'undefined' && !window.TESSERACT_FAILED;
+  const cv = canvas2 => {}; // placeholder
+  document.getElementById('modulesStatus').innerHTML = `
+    <span class="status-pill ${xlsxOk?'ok':'err'}"><span class="dot"></span>Excel (xlsx): ${xlsxOk?'sẵn sàng':'lỗi tải'}</span>
+    <span class="status-pill ${tessOk?'ok':'err'}"><span class="dot"></span>OCR Tesseract: ${tessOk?'sẵn sàng':'lỗi tải - thiếu internet?'}</span>
+    <span class="status-pill ok"><span class="dot"></span>Auto-detect grid: sẵn sàng</span>
+    <span class="status-pill ${state.calibTemplate?'ok':''}"><span class="dot"></span>Template hiệu chỉnh: ${state.calibTemplate?'đã lưu':'chưa có'}</span>
+  `;
+}
+window.addEventListener('load', () => setTimeout(renderModulesStatus, 300));
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+    if (t.dataset.tab === 'grade') refreshCodeDropdown();
+    if (t.dataset.tab === 'results') renderResults();
+    if (t.dataset.tab === 'keys') renderTickGrid();
+    if (t.dataset.tab === 'setup') renderModulesStatus();
+  });
+});
+document.querySelectorAll('.tab-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab-tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.sub-panel').forEach(x => x.style.display = 'none');
+    t.classList.add('active');
+    document.getElementById('sub-' + t.dataset.sub).style.display = 'block';
+    if (t.dataset.sub === 'tick') renderTickGrid();
+  });
+});
+
+function onConfigChange() {
+  renderTickGrid();
+  document.getElementById('tickTotal').textContent = document.getElementById('numQ').value;
+  saveState();
+}
+
+function calibPointsNeeded() {
+  const numQ = parseInt(document.getElementById('numQ').value);
+  return numQ <= 25 ? 2 : 4;
+}
+
+// ============================================================
+// TICK GRID
+// ============================================================
+function renderTickGrid() {
+  const numQ = parseInt(document.getElementById('numQ').value);
+  while (state.tickedAnswers.length < numQ) state.tickedAnswers.push(null);
+  if (state.tickedAnswers.length > numQ) state.tickedAnswers.length = numQ;
+  const grid = document.getElementById('tickGrid');
+  let html = '';
+  for (let q = 0; q < numQ; q++) {
+    html += `<div class="tick-row"><span class="qnum">Câu ${q+1}</span>`;
+    for (const c of 'ABCD') {
+      const sel = state.tickedAnswers[q] === c ? 'selected' : '';
+      html += `<button type="button" class="tick-btn ${sel}" onclick="tickAnswer(${q},'${c}')">${c}</button>`;
+    }
+    html += '</div>';
+  }
+  grid.innerHTML = html;
+  updateTickCount();
+}
+function tickAnswer(q, c) {
+  state.tickedAnswers[q] = state.tickedAnswers[q] === c ? null : c;
+  renderTickGrid();
+}
+function clearTickGrid() { state.tickedAnswers = []; renderTickGrid(); }
+function updateTickCount() {
+  document.getElementById('tickCount').textContent = state.tickedAnswers.filter(x => x).length;
+}
+function saveTickedKey() {
+  const code = document.getElementById('newCode').value.trim();
+  const numQ = parseInt(document.getElementById('numQ').value);
+  if (!code) { alert('Vui lòng nhập mã đề'); return; }
+  const missing = [];
+  for (let i = 0; i < numQ; i++) if (!state.tickedAnswers[i]) missing.push(i+1);
+  if (missing.length && !confirm(`Còn ${missing.length} câu chưa tick. Vẫn lưu?`)) return;
+  state.keys[code] = state.tickedAnswers.slice(0, numQ).map(a => a || '?');
+  alert(`✓ Đã lưu mã đề "${code}".`);
+  renderKeyList();
+  saveState();
+}
+function saveTextKey() {
+  const code = document.getElementById('newCode').value.trim();
+  const ans = document.getElementById('newAnswers').value;
+  const numQ = parseInt(document.getElementById('numQ').value);
+  if (!code) { alert('Vui lòng nhập mã đề'); return; }
+  const clean = ans.toUpperCase().replace(/[^ABCD]/g,'').split('');
+  if (clean.length < numQ) { alert(`Mới có ${clean.length}/${numQ} đáp án`); return; }
+  state.keys[code] = clean.slice(0, numQ);
+  alert(`✓ Đã lưu mã đề "${code}".`);
+  renderKeyList();
+  saveState();
+}
+function deleteKey(c) {
+  if (confirm(`Xoá mã ${c}?`)) { delete state.keys[c]; renderKeyList(); saveState(); }
+}
+function loadKeyToTick(code) {
+  const numQ = parseInt(document.getElementById('numQ').value);
+  state.tickedAnswers = state.keys[code].slice();
+  while (state.tickedAnswers.length < numQ) state.tickedAnswers.push(null);
+  document.getElementById('newCode').value = code;
+  document.querySelector('.tab-tab[data-sub="tick"]').click();
+  renderTickGrid();
+}
+function renderKeyList() {
+  const div = document.getElementById('keyList');
+  const codes = Object.keys(state.keys);
+  if (!codes.length) { div.innerHTML = '<div class="small">Chưa có mã đề nào.</div>'; return; }
+  div.innerHTML = codes.map(c => `
+    <div class="key-item">
+      <span class="code">Mã ${c}</span>
+      <span class="badge">${state.keys[c].length} câu</span>
+      <span class="answers">${state.keys[c].join(' ')}</span>
+      <button class="secondary small" onclick="loadKeyToTick('${c}')">✎ Sửa</button>
+      <button class="danger small" onclick="deleteKey('${c}')">Xoá</button>
+    </div>`).join('');
+}
+function refreshCodeDropdown() {
+  const sel = document.getElementById('gradeCode');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">-- Chọn mã đề --</option>' +
+    Object.keys(state.keys).map(c => `<option value="${c}">Mã đề ${c} (${state.keys[c].length} câu)</option>`).join('');
+  if (cur && state.keys[cur]) sel.value = cur;
+}
+
+// ============================================================
+// CLASS LIST LOAD
+// ============================================================
+['dragover','dragenter'].forEach(ev => {
+  const el = document.getElementById('classDrop');
+  if (el) el.addEventListener(ev, e => { e.preventDefault(); e.currentTarget.classList.add('dragover'); });
+});
+['dragleave','drop'].forEach(ev => {
+  const el = document.getElementById('classDrop');
+  if (el) el.addEventListener(ev, e => { e.preventDefault(); e.currentTarget.classList.remove('dragover'); });
+});
+document.getElementById('classDrop').addEventListener('drop', e => {
+  if (e.dataTransfer.files[0]) {
+    document.getElementById('classFile').files = e.dataTransfer.files;
+    loadClassFile({target: {files: e.dataTransfer.files}});
+  }
+});
+function loadClassFile(event) {
+  const f = event.target.files[0]; if (!f) return;
+  const ext = f.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    const r = new FileReader();
+    r.onload = e => parseClassCSV(e.target.result);
+    r.readAsText(f, 'utf-8');
+  } else {
+    if (typeof XLSX === 'undefined') { alert('Không tải được lib Excel. Hãy xuất ra CSV.'); return; }
+    const r = new FileReader();
+    r.onload = e => {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      parseClassRows(XLSX.utils.sheet_to_json(ws, {header:1, defval:''}));
+    };
+    r.readAsArrayBuffer(f);
+  }
+}
+function parseClassCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const rows = lines.map(line => {
+    const out = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) {
+        if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') inQ = false;
+        else cur += ch;
+      } else {
+        if (ch === ',') { out.push(cur); cur = ''; }
+        else if (ch === '"') inQ = true;
+        else cur += ch;
+      }
+    }
+    out.push(cur); return out;
+  });
+  parseClassRows(rows);
+}
+function parseClassRows(rows) {
+  if (rows.length < 2) { alert('File rỗng'); return; }
+  const headers = rows[0].map(h => String(h).trim());
+  const data = rows.slice(1).filter(r => r.some(c => String(c).trim()));
+  let nameIdx = -1, classIdx = -1;
+  const namePats = /^(họ\s*(và\s*)?tên|hovaten|hoten|fullname|full\s*name|name)$/i;
+  const classPats = /^(lớp|lop|class)$/i;
+  headers.forEach((h, i) => {
+    if (nameIdx < 0 && namePats.test(h)) nameIdx = i;
+    if (classIdx < 0 && classPats.test(h)) classIdx = i;
+  });
+  if (nameIdx < 0) {
+    const opts = headers.map((h,i) => `${i+1}. ${h}`).join('\n');
+    const sel = prompt(`Chọn số cột Họ tên:\n${opts}`, '2');
+    nameIdx = parseInt(sel) - 1;
+    if (isNaN(nameIdx) || nameIdx < 0 || nameIdx >= headers.length) { alert('Không hợp lệ'); return; }
+  }
+  state.classList = { headers, rows: data, nameIdx, classIdx };
+  renderClassTable();
+  document.getElementById('classListBox').style.display = 'block';
+  document.getElementById('classListInfo').innerHTML = `<div class="ok-box">✓ Đã tải ${data.length} SV. Cột tên: <b>${headers[nameIdx]}</b>${classIdx>=0?', cột lớp: <b>'+headers[classIdx]+'</b>':''}</div>`;
+  saveState();
+}
+function renderClassTable() {
+  const cl = state.classList;
+  if (!cl.rows.length) return;
+  const scoreByRow = {};
+  state.results.forEach(r => { scoreByRow[r.rowIdx] = r; });
+  const headers = [...cl.headers, 'Mã đề', 'Số câu đúng', 'Điểm'];
+  let html = '<table class="stu-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+  cl.rows.forEach((r, i) => {
+    const sc = scoreByRow[i];
+    html += `<tr class="${sc?'has-score':''}">` +
+      cl.headers.map((_, j) => `<td>${r[j] || ''}</td>`).join('') +
+      `<td>${sc?sc.code:''}</td><td>${sc?sc.correct+'/'+sc.total:''}</td><td><b>${sc?sc.score:''}</b></td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('classListTable').innerHTML = html;
+  const total = cl.rows.length;
+  const done = Object.keys(scoreByRow).length;
+  document.getElementById('classProgress').textContent = `${done}/${total}`;
+  document.getElementById('classProgressBar').style.width = `${total ? done/total*100 : 0}%`;
+}
+
+// ============================================================
+// IMAGE HELPERS
+// ============================================================
+function fitImageToCanvas(img, canvas, maxW = 1400) {
+  const scale = Math.min(1, maxW / img.width);
+  canvas.width = img.width * scale;
+  canvas.height = img.height * scale;
+  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+  return scale;
+}
+function loadImageFile(file, cb) {
+  const r = new FileReader();
+  r.onload = e => { const img = new Image(); img.onload = () => cb(img); img.src = e.target.result; };
+  r.readAsDataURL(file);
+}
+function getClickCoords(e, canvas) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+    y: (e.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+// ============================================================
+// AUTO-DETECT GRID (PROJECTION PROFILE METHOD)
+// ============================================================
+function autoDetectHHTGrid(canvas) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const img = ctx.getImageData(0, 0, w, h).data;
+
+  // 1. Binarize using Otsu-like adaptive threshold
+  let sum = 0;
+  for (let i = 0; i < img.length; i += 4) {
+    sum += (img[i] + img[i+1] + img[i+2]) / 3;
+  }
+  const avg = sum / (w * h);
+  const thresh = Math.max(100, Math.min(180, avg * 0.78));
+
+  const dark = new Uint8Array(w * h);
+  for (let i = 0, j = 0; i < img.length; i += 4, j++) {
+    const gray = (img[i] + img[i+1] + img[i+2]) / 3;
+    dark[j] = gray < thresh ? 1 : 0;
+  }
+
+  // 2. Row sums (horizontal projection)
+  const rowSums = new Int32Array(h);
+  for (let y = 0; y < h; y++) {
+    let s = 0;
+    for (let x = 0; x < w; x++) s += dark[y * w + x];
+    rowSums[y] = s;
+  }
+
+  // 3. Find horizontal lines: rows spanning >= 40% of image width (filters out text)
+  const hLineThresh = w * 0.4;
+  const hLines = [];
+  let inLine = false, lineStart = 0;
+  for (let y = 0; y < h; y++) {
+    if (rowSums[y] > hLineThresh && !inLine) { inLine = true; lineStart = y; }
+    else if (rowSums[y] <= hLineThresh && inLine) {
+      inLine = false;
+      const lineH = y - lineStart;
+      if (lineH < 18) hLines.push({ y: (lineStart + y - 1) / 2, height: lineH });
+    }
+  }
+  if (hLines.length < 8) return null; // need at least 8 lines
+
+  // 4. Cluster lines into blocks - tighter threshold + refinement
+  const clusters = [];
+  let cur = [hLines[0]];
+  for (let i = 1; i < hLines.length; i++) {
+    const gap = hLines[i].y - cur[cur.length - 1].y;
+    if (gap < h * 0.08) cur.push(hLines[i]);
+    else {
+      if (cur.length >= 4) clusters.push(cur);
+      cur = [hLines[i]];
+    }
+  }
+  if (cur.length >= 4) clusters.push(cur);
+
+  // 4b. Split any oversized cluster at its biggest internal gap (handles cases where text rows leak in)
+  const refined = [];
+  const queue = [...clusters];
+  while (queue.length) {
+    const c = queue.shift();
+    if (c.length <= 6) { refined.push(c); continue; }
+    let maxGap = 0, splitIdx = -1;
+    for (let i = 1; i < c.length; i++) {
+      const g = c[i].y - c[i-1].y;
+      if (g > maxGap) { maxGap = g; splitIdx = i; }
+    }
+    if (splitIdx > 0 && maxGap > 30) {
+      const left = c.slice(0, splitIdx), right = c.slice(splitIdx);
+      if (left.length >= 4) queue.push(left);
+      if (right.length >= 4) queue.push(right);
+    } else {
+      refined.push(c);
+    }
+  }
+
+  // 5. Take 2 clusters with most lines (should each have ~5 lines)
+  refined.sort((a, b) => b.length - a.length);
+  const top2 = refined.slice(0, 2).sort((a, b) => a[0].y - b[0].y);
+  if (top2.length === 0) return null;
+
+  function processBlock(cluster) {
+    const yStart = cluster[0].y;
+    const yEnd = cluster[cluster.length - 1].y;
+
+    // Find vertical lines within this block's y-range
+    const yS = Math.floor(yStart);
+    const yE = Math.ceil(yEnd);
+    const colSums = new Int32Array(w);
+    for (let x = 0; x < w; x++) {
+      let s = 0;
+      for (let y = yS; y < yE; y++) s += dark[y * w + x];
+      colSums[x] = s;
+    }
+    const blockH = yEnd - yStart;
+    const vThresh = blockH * 0.4;
+    const vLines = [];
+    let inL = false, lS = 0;
+    for (let x = 0; x < w; x++) {
+      if (colSums[x] > vThresh && !inL) { inL = true; lS = x; }
+      else if (colSums[x] <= vThresh && inL) {
+        inL = false;
+        const lw = x - lS;
+        if (lw < 18) vLines.push((lS + x - 1) / 2);
+      }
+    }
+    if (vLines.length < 2) return null;
+
+    // Determine the question-cell range:
+    // Total cells = vLines.length - 1
+    // The label column (A/B/C/D) is the LEFTMOST cell
+    // Question cells are the remaining
+    // If we have 26 vertical lines → 25 cells = 1 label + 24 questions? OR 25 questions only?
+    // Typically: 1 label col + 25 question cols = 26 cells = 27 vertical lines
+    // OR: 25 question cols only = 25 cells = 26 vertical lines (label col is outside the boxed grid)
+    // We take the RIGHTMOST 25 cells = rightmost 26 vertical lines
+    let xStart, xEnd;
+    if (vLines.length >= 26) {
+      xStart = vLines[vLines.length - 26];
+      xEnd = vLines[vLines.length - 1];
+    } else if (vLines.length >= 6) {
+      // Fewer lines - might still be usable; take what we have
+      xStart = vLines[0];
+      xEnd = vLines[vLines.length - 1];
+    } else {
+      return null;
+    }
+    return {
+      p1: { x: xStart, y: yStart },
+      p2: { x: xEnd, y: yEnd },
+      numLines: vLines.length
+    };
+  }
+
+  const blocks = top2.map(processBlock).filter(b => b);
+  if (blocks.length === 0) return null;
+  return blocks;
+}
+
+function tryAutoDetect(canvas, numQ) {
+  const blocks = autoDetectHHTGrid(canvas);
+  if (!blocks || blocks.length === 0) return null;
+  if (numQ <= 25 && blocks.length >= 1) {
+    return [blocks[0].p1, blocks[0].p2];
+  } else if (numQ > 25 && blocks.length >= 2) {
+    return [blocks[0].p1, blocks[0].p2, blocks[1].p1, blocks[1].p2];
+  } else if (numQ > 25 && blocks.length === 1) {
+    return null; // need bottom block
+  }
+  return null;
+}
+
+// ============================================================
+// NEW: OCR-ANCHOR GRID DETECTION
+// Use printed question numbers (1, 2, ..., 25) as anchors instead of
+// dividing detected vertical lines. Robust to perspective distortion.
+// ============================================================
+async function detectGridByOCR(canvas, numQ) {
+  // 1. Find h-line clusters (block boundaries)
+  const hData = detectHHTGridRaw(canvas);
+  if (!hData || hData.blocks.length === 0) return null;
+
+  // 2. OCR for numbers via Tesseract.js
+  const worker = await getOCRWorker();
+  if (!worker) return null;
+  let numTokens = [];
+  try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: '11', // sparse text
+      tessedit_char_whitelist: '0123456789'
+    });
+    const { data } = await worker.recognize(canvas);
+    const words = (data.words || []);
+    for (const w of words) {
+      const txt = (w.text || '').trim();
+      const n = parseInt(txt);
+      if (!isNaN(n) && n >= 1 && n <= 50 && String(n) === txt) {
+        numTokens.push({
+          num: n,
+          cx: (w.bbox.x0 + w.bbox.x1) / 2,
+          cy: (w.bbox.y0 + w.bbox.y1) / 2
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('OCR for grid failed:', e);
+    return null;
+  }
+  if (numTokens.length < 6) {
+    console.warn('Too few number anchors:', numTokens.length);
+    return null;
+  }
+
+  // 3. For each h-block, find nearby numbers (just above) and linear-fit
+  const fits = [];
+  for (const blk of hData.blocks) {
+    const yStart = blk[0];
+    // Numbers should be just above yStart (within 100px) OR inside top of block
+    let nearby = numTokens.filter(n => yStart - 120 < n.cy && n.cy < yStart);
+    if (nearby.length < 3) {
+      nearby = numTokens.filter(n => Math.abs(n.cy - yStart) < 50);
+    }
+    if (nearby.length < 3) continue;
+    // Linear regression
+    const xs = nearby.map(n => n.num);
+    const ys = nearby.map(n => n.cx);
+    const n = xs.length;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (let i = 0; i < n; i++) { sx += xs[i]; sy += ys[i]; sxx += xs[i]*xs[i]; sxy += xs[i]*ys[i]; }
+    const denom = (n * sxx - sx * sx);
+    if (Math.abs(denom) < 1e-6) continue;
+    const slope = (n * sxy - sx * sy) / denom;
+    const intercept = (sy - slope * sx) / n;
+    const maxQ = Math.max(...xs);
+    const qStart = maxQ <= 25 ? 1 : 26;
+    const qEnd = qStart + 24;
+    fits.push({
+      hLines: blk, slope, intercept, qStart, qEnd, anchors: nearby.length
+    });
+  }
+  if (fits.length === 0) return null;
+
+  // 4. Build calibration points for the existing OMR pipeline
+  // For block 1 (Q1-Q25): p1 = (x for Q1, top h-line), p2 = (x for Q25, bottom h-line)
+  // BUT: existing pipeline treats p1, p2 as cell EDGES not centers, and divides by numQ for cell width.
+  // To use this, we set p1.x = x(Q1) - cellW/2 and p2.x = x(Q_last) + cellW/2.
+  const points = [];
+  fits.sort((a, b) => a.qStart - b.qStart);
+  for (let bi = 0; bi < fits.length; bi++) {
+    const f = fits[bi];
+    const cellW = Math.abs(f.slope);
+    const blockSize = (bi === 0 ? Math.min(numQ, 25) : numQ - 25);
+    if (blockSize <= 0) continue;
+    const firstQ = bi === 0 ? 1 : 26;
+    const lastQ = firstQ + blockSize - 1;
+    const x1 = f.intercept + f.slope * firstQ - cellW / 2;
+    const x2 = f.intercept + f.slope * lastQ + cellW / 2;
+    const y1 = f.hLines[0];
+    const y2 = f.hLines[f.hLines.length - 1];
+    points.push({ x: x1, y: y1 }, { x: x2, y: y2 });
+  }
+
+  if (numQ <= 25 && points.length >= 2) return points.slice(0, 2);
+  if (numQ > 25 && points.length === 4) return points;
+  return null;
+}
+
+// ============================================================
+// NEW: PER-CELL positioning. Each printed number is the EXACT center
+// of its column. Cell width comes from local neighbor spacing
+// (handles perspective distortion - cells in real photos vary in width).
+// Returns: array of { q, row, choice, x, y, w, h, fromOCR }
+// ============================================================
+async function detectCellsByOCR(canvas, numQ) {
+  const worker = await getOCRWorker();
+  if (!worker) return null;
+  try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: '11',
+      tessedit_char_whitelist: '0123456789'
+    });
+  } catch(e) {}
+  let words = [];
+  try {
+    const { data } = await worker.recognize(canvas);
+    words = data.words || [];
+  } catch (e) { return null; }
+
+  // Extract number tokens
+  const tokens = [];
+  for (const w of words) {
+    const txt = (w.text || '').trim();
+    const n = parseInt(txt);
+    if (!isNaN(n) && n >= 1 && n <= 50 && String(n) === txt) {
+      tokens.push({
+        num: n,
+        cx: (w.bbox.x0 + w.bbox.x1) / 2,
+        cy: (w.bbox.y0 + w.bbox.y1) / 2
+      });
+    }
+  }
+  if (tokens.length < 6) return null;
+
+  // Group by Y into blocks
+  tokens.sort((a, b) => a.cy - b.cy);
+  const tokenBlocks = [];
+  let cur = [];
+  for (const t of tokens) {
+    if (cur.length && Math.abs(t.cy - cur[0].cy) > 80) {
+      if (cur.length >= 5) tokenBlocks.push(cur);
+      cur = [];
+    }
+    cur.push(t);
+  }
+  if (cur.length >= 5) tokenBlocks.push(cur);
+  if (tokenBlocks.length === 0) return null;
+
+  // H-lines (rows)
+  const hData = detectHHTGridRaw(canvas);
+  if (!hData || !hData.blocks || hData.blocks.length === 0) return null;
+
+  const cells = [];
+  tokenBlocks.sort((a, b) => a[0].cy - b[0].cy);
+  for (let bi = 0; bi < Math.min(2, tokenBlocks.length); bi++) {
+    const tBlock = tokenBlocks[bi];
+    tBlock.sort((a, b) => a.cx - b.cx);
+    const minQ = Math.min(...tBlock.map(t => t.num));
+    const qStart = minQ <= 25 ? 1 : 26;
+    const qEnd = qStart + 24;
+    const blockSize = (bi === 0 ? Math.min(numQ, 25) : Math.max(0, numQ - 25));
+    if (blockSize <= 0) continue;
+    const useQEnd = qStart + blockSize - 1;
+
+    // Build q -> cx map
+    const qToCx = {};
+    for (const t of tBlock) qToCx[t.num] = t.cx;
+
+    // Linear fit on detected for interpolation/extrapolation
+    const xs = Object.keys(qToCx).map(Number);
+    let slope = 0, intercept = 0;
+    if (xs.length >= 2) {
+      const ys = xs.map(q => qToCx[q]);
+      let sx = 0, sy = 0, sxx = 0, sxy = 0;
+      for (let i = 0; i < xs.length; i++) {
+        sx += xs[i]; sy += ys[i];
+        sxx += xs[i] * xs[i]; sxy += xs[i] * ys[i];
+      }
+      const denom = xs.length * sxx - sx * sx;
+      slope = denom > 0 ? (xs.length * sxy - sx * sy) / denom : 0;
+      intercept = (sy - slope * sx) / xs.length;
+    }
+
+    // Find matching h-line block (just below numbers, within 150px)
+    const numberY = tBlock[0].cy;
+    let hBlock = null;
+    for (const hb of hData.blocks) {
+      if (hb[0] > numberY && hb[0] < numberY + 200) { hBlock = hb; break; }
+    }
+    if (!hBlock) continue;
+
+    // Per cell
+    for (let q = qStart; q <= useQEnd; q++) {
+      const fromOCR = qToCx[q] !== undefined;
+      const cx = fromOCR ? qToCx[q] : (intercept + slope * q);
+
+      // Compute cell width from LOCAL neighbors (handles perspective)
+      let neighborWidths = [];
+      for (let dq = -2; dq <= 2; dq++) {
+        if (dq === 0) continue;
+        if (qToCx[q + dq] !== undefined) {
+          neighborWidths.push(Math.abs((qToCx[q + dq] - cx) / dq));
+        }
+      }
+      let cellW = neighborWidths.length
+        ? neighborWidths.reduce((a, b) => a + b, 0) / neighborWidths.length
+        : Math.abs(slope);
+      // Slightly shrink to avoid hitting cell borders
+      const effectiveW = cellW * 0.92;
+
+      for (let r = 0; r < 4; r++) {
+        const y0 = hBlock[r];
+        const y1 = hBlock[r + 1];
+        cells.push({
+          q, row: r, choice: 'ABCD'[r],
+          x: cx - effectiveW / 2, y: y0,
+          w: effectiveW, h: y1 - y0,
+          fromOCR
+        });
+      }
+    }
+  }
+  return cells.length > 0 ? cells : null;
+}
+
+// Grade using pre-computed cells (each cell has exact (x,y,w,h))
+function gradeFromCells(canvas, cells, numQ) {
+  const byQ = {};
+  for (const c of cells) {
+    if (!byQ[c.q]) byQ[c.q] = [];
+    byQ[c.q].push(c);
+  }
+  const choices = [];
+  const cellStates = [];
+  for (let q = 1; q <= numQ; q++) {
+    const qc = byQ[q];
+    if (!qc || qc.length !== 4) { choices.push(null); cellStates.push(null); continue; }
+    qc.sort((a, b) => a.row - b.row);
+    const states = qc.map(c => classifyCell(canvas, c.x, c.y, c.w, c.h));
+    const xCells = states.map((s, i) => s.state === 'x' ? i : -1).filter(i => i >= 0);
+    let choice = null;
+    if (xCells.length === 1) choice = 'ABCD'[xCells[0]];
+    else if (xCells.length > 1) {
+      const best = xCells.reduce((b, i) => states[i].fill > states[b].fill ? i : b, xCells[0]);
+      choice = 'ABCD'[best];
+    }
+    choices.push(choice);
+    cellStates.push({ cells: qc, states });
+  }
+  return { choices, cellStates };
+}
+
+// Draw cell overlay on canvas
+function drawCellsOverlay(canvas, cells, gradeData) {
+  const ctx = canvas.getContext('2d');
+  cells.forEach(c => {
+    const isOCR = c.fromOCR;
+    let stroke = isOCR ? 'rgba(76,175,80,0.7)' : 'rgba(255,152,0,0.7)';
+    let fill = null;
+    if (gradeData && gradeData.cellStates[c.q-1]) {
+      const cs = gradeData.cellStates[c.q-1];
+      const st = cs.states[c.row];
+      if (st && st.state === 'x') { stroke = '#1976d2'; fill = 'rgba(25,118,210,0.15)'; }
+      else if (st && st.state === 'filled') { stroke = '#ff9800'; fill = 'rgba(255,152,0,0.2)'; }
+    }
+    if (fill) { ctx.fillStyle = fill; ctx.fillRect(c.x, c.y, c.w, c.h); }
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(c.x, c.y, c.w, c.h);
+  });
+}
+
+// Helper: just the h-line detection part of autoDetectHHTGrid
+function detectHHTGridRaw(canvas) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const img = ctx.getImageData(0, 0, w, h).data;
+  let sum = 0;
+  for (let i = 0; i < img.length; i += 4) sum += (img[i]+img[i+1]+img[i+2])/3;
+  const avg = sum / (w * h);
+  const thresh = Math.max(100, Math.min(180, avg * 0.78));
+  const dark = new Uint8Array(w * h);
+  for (let i = 0, j = 0; i < img.length; i += 4, j++) {
+    const gray = (img[i]+img[i+1]+img[i+2])/3;
+    dark[j] = gray < thresh ? 1 : 0;
+  }
+  const rowSums = new Int32Array(h);
+  for (let y = 0; y < h; y++) {
+    let s = 0;
+    for (let x = 0; x < w; x++) s += dark[y * w + x];
+    rowSums[y] = s;
+  }
+  const hLines = [];
+  let inLine = false, lineStart = 0;
+  for (let y = 0; y < h; y++) {
+    if (rowSums[y] > w * 0.4 && !inLine) { inLine = true; lineStart = y; }
+    else if (rowSums[y] <= w * 0.4 && inLine) {
+      inLine = false;
+      if (y - lineStart < 18) hLines.push((lineStart + y - 1) / 2);
+    }
+  }
+  if (hLines.length < 8) return null;
+  const clusters = [];
+  let cur = [hLines[0]];
+  for (let i = 1; i < hLines.length; i++) {
+    if (hLines[i] - cur[cur.length-1] < h * 0.08) cur.push(hLines[i]);
+    else { if (cur.length >= 4) clusters.push(cur); cur = [hLines[i]]; }
+  }
+  if (cur.length >= 4) clusters.push(cur);
+  // Refine: split oversized clusters
+  const refined = [];
+  const queue = [...clusters];
+  while (queue.length) {
+    const c = queue.shift();
+    if (c.length <= 6) { refined.push(c); continue; }
+    let maxGap = 0, splitIdx = -1;
+    for (let i = 1; i < c.length; i++) {
+      const g = c[i] - c[i-1];
+      if (g > maxGap) { maxGap = g; splitIdx = i; }
+    }
+    if (splitIdx > 0 && maxGap > 30) {
+      const left = c.slice(0, splitIdx), right = c.slice(splitIdx);
+      if (left.length >= 4) queue.push(left);
+      if (right.length >= 4) queue.push(right);
+    } else refined.push(c);
+  }
+  refined.sort((a, b) => a[0] - b[0]);
+  return { blocks: refined.slice(0, 2) };
+}
+
+// ============================================================
+// TEMPLATE CACHING
+// ============================================================
+function saveCalibTemplate(canvas, points) {
+  state.calibTemplate = {
+    points: points.map(p => ({ xr: p.x / canvas.width, yr: p.y / canvas.height })),
+    aspectRatio: canvas.width / canvas.height,
+    savedAt: Date.now()
+  };
+  renderModulesStatus();
+  saveState();
+}
+function applyCalibTemplate(canvas) {
+  if (!state.calibTemplate) return null;
+  return state.calibTemplate.points.map(p => ({
+    x: p.xr * canvas.width,
+    y: p.yr * canvas.height
+  }));
+}
+
+// ============================================================
+// OMR CORE (classify a cell)
+// ============================================================
+function classifyCell(canvas, x0, y0, w, h) {
+  const ctx = canvas.getContext('2d');
+  x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0));
+  w = Math.min(canvas.width - x0, Math.floor(w));
+  h = Math.min(canvas.height - y0, Math.floor(h));
+  if (w <= 2 || h <= 2) return { state:'empty', fill:0 };
+  const img = ctx.getImageData(x0, y0, w, h);
+  const data = img.data;
+  const padX = Math.max(2, Math.floor(w * 0.15));
+  const padY = Math.max(2, Math.floor(h * 0.15));
+  let sumGray = 0, count = 0;
+  for (let y = padY; y < h - padY; y++)
+    for (let x = padX; x < w - padX; x++) {
+      const i = (y * w + x) * 4;
+      sumGray += (data[i] + data[i+1] + data[i+2]) / 3;
+      count++;
+    }
+  if (!count) return { state:'empty', fill:0 };
+  const avg = sumGray / count;
+  const thresh = Math.max(80, Math.min(170, avg * 0.6 + 40));
+  let ink = 0, total = 0, cInk = 0, cTot = 0, eInk = 0, eTot = 0;
+  const cx = w/2, cy = h/2, innerR = Math.min(w,h)*0.35;
+  for (let y = padY; y < h - padY; y++)
+    for (let x = padX; x < w - padX; x++) {
+      const i = (y * w + x) * 4;
+      const gray = (data[i] + data[i+1] + data[i+2]) / 3;
+      const isInk = gray < thresh;
+      total++; if (isInk) ink++;
+      const dx = x - cx, dy = y - cy, d = Math.sqrt(dx*dx + dy*dy);
+      if (d < innerR) { cTot++; if (isInk) cInk++; }
+      else { eTot++; if (isInk) eInk++; }
+    }
+  const fill = ink / total;
+  const cf = cInk / Math.max(1, cTot);
+  const ef = eInk / Math.max(1, eTot);
+  let stateRes;
+  if (fill < 0.08) stateRes = 'empty';
+  else if (fill > 0.55 && ef > 0.45 && cf > 0.55) stateRes = 'filled';
+  else stateRes = 'x';
+  return { state: stateRes, fill, cf, ef };
+}
+
+function detectHHTBlock(canvas, p1, p2, numCols, drawDebug=true) {
+  const w = (p2.x - p1.x) / numCols;
+  const h = (p2.y - p1.y) / 4;
+  const ctx = canvas.getContext('2d');
+  const results = [];
+  for (let c = 0; c < numCols; c++) {
+    const states = [];
+    for (let r = 0; r < 4; r++) {
+      const x0 = p1.x + c * w;
+      const y0 = p1.y + r * h;
+      const cls = classifyCell(canvas, x0, y0, w, h);
+      states.push(cls);
+      if (drawDebug) {
+        ctx.strokeStyle = cls.state === 'x' ? '#1976d2' :
+                         cls.state === 'filled' ? '#ff9800' : 'rgba(76,175,80,.5)';
+        ctx.lineWidth = cls.state === 'x' ? 3 : 1.5;
+        ctx.strokeRect(x0, y0, w, h);
+      }
+    }
+    const choices = 'ABCD';
+    const xCells = states.map((s,i) => s.state === 'x' ? i : -1).filter(i => i >= 0);
+    let choice = null;
+    if (xCells.length === 1) choice = choices[xCells[0]];
+    else if (xCells.length > 1) {
+      const best = xCells.reduce((b,i) => states[i].fill > states[b].fill ? i : b, xCells[0]);
+      choice = choices[best];
+    }
+    results.push({ choice, states });
+  }
+  return results;
+}
+
+function detectFullSheet(canvas, points, numQ) {
+  const blockSize = 25;
+  if (numQ <= blockSize) return detectHHTBlock(canvas, points[0], points[1], numQ);
+  const top = detectHHTBlock(canvas, points[0], points[1], blockSize);
+  const bottom = detectHHTBlock(canvas, points[2], points[3], numQ - blockSize);
+  return [...top, ...bottom];
+}
+
+function drawCalibPoints(canvas, points, color='#4caf50') {
+  const ctx = canvas.getContext('2d');
+  points.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 8, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(i+1, p.x, p.y+4);
+  });
+}
+
+// ============================================================
+// OCR + FUZZY MATCH (for handwritten student name)
+// ============================================================
+let _ocrWorkerPromise = null;
+async function getOCRWorker() {
+  if (typeof Tesseract === 'undefined' || window.TESSERACT_FAILED) return null;
+  if (_ocrWorkerPromise) return _ocrWorkerPromise;
+  _ocrWorkerPromise = (async () => {
+    try {
+      const w = await Tesseract.createWorker('vie', 1, {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            const el = document.getElementById('ocrStatus');
+            if (el) el.innerHTML = `<span class="spinner"></span> OCR: ${Math.round(m.progress*100)}%`;
+          }
+        }
+      });
+      return w;
+    } catch (e) {
+      console.error('OCR init error:', e);
+      return null;
+    }
+  })();
+  return _ocrWorkerPromise;
+}
+
+async function ocrCanvas(canvas, opts = {}) {
+  const w = await getOCRWorker();
+  if (!w) return '';
+  try {
+    // CRITICAL: reset parameters from any previous OCR call (e.g., grid detection used number-only whitelist)
+    await w.setParameters({
+      tessedit_pageseg_mode: opts.psm || '6',  // assume block of text
+      tessedit_char_whitelist: opts.whitelist || ''  // empty = allow all (Vietnamese)
+    });
+    const { data: { text } } = await w.recognize(canvas);
+    return text;
+  } catch (e) {
+    console.error('OCR error:', e);
+    return '';
+  }
+}
+
+// ============================================================
+// BLUE INK FILTER: keep only pixels that look like blue handwriting,
+// remove all printed black text + paper background. Greatly improves
+// handwritten Vietnamese OCR by removing the noise of printed form labels.
+// ============================================================
+function extractBlueInk(srcCanvas) {
+  const ctx = srcCanvas.getContext('2d');
+  const w = srcCanvas.width, h = srcCanvas.height;
+  if (w <= 0 || h <= 0) return srcCanvas;
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const outCtx = out.getContext('2d');
+  outCtx.fillStyle = 'white';
+  outCtx.fillRect(0, 0, w, h);
+  const outImg = outCtx.getImageData(0, 0, w, h);
+  const outData = outImg.data;
+
+  // Initialize fully white
+  for (let i = 0; i < outData.length; i += 4) {
+    outData[i] = 255; outData[i+1] = 255; outData[i+2] = 255; outData[i+3] = 255;
+  }
+
+  let bluePixels = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i+1], b = data[i+2];
+    // Blue ink: B channel notably higher than R and G; not too bright (not paper)
+    const isBlue = (b > r + 15) && (b > g + 5) && (b > 60) && (r < 200);
+    if (isBlue) {
+      // Render as dark gray for high OCR contrast
+      const gray = Math.min(50, Math.floor((r + g) / 2));
+      outData[i] = gray;
+      outData[i+1] = gray;
+      outData[i+2] = gray;
+      outData[i+3] = 255;
+      bluePixels++;
+    }
+  }
+  // If too few blue pixels (e.g., student wrote in black ink), fall back to grayscale
+  if (bluePixels < (w * h) * 0.002) {
+    // Use grayscale binarization instead
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = (data[i] + data[i+1] + data[i+2]) / 3;
+      const isDark = gray < 130;
+      const v = isDark ? Math.min(50, gray) : 255;
+      outData[i] = v; outData[i+1] = v; outData[i+2] = v; outData[i+3] = 255;
+    }
+  }
+  outCtx.putImageData(outImg, 0, 0);
+  return out;
+}
+
+// ============================================================
+// UPSCALE CANVAS (better OCR for small handwriting)
+// ============================================================
+function upscaleCanvas(srcCanvas, factor = 2) {
+  const out = document.createElement('canvas');
+  out.width = srcCanvas.width * factor;
+  out.height = srcCanvas.height * factor;
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(srcCanvas, 0, 0, out.width, out.height);
+  return out;
+}
+
+function normVN(s) {
+  return String(s||'').toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function editDistance(a, b) {
+  if (!a || !b) return 99;
+  if (Math.abs(a.length - b.length) > 3) return 99;
+  const m = a.length, n = b.length;
+  const dp = Array.from({length:m+1},() => new Int32Array(n+1));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+function fuzzySuggestStudents(ocrText, topN=5) {
+  const cl = state.classList;
+  if (!cl.rows || !cl.rows.length) return [];
+  const norm = normVN(ocrText);
+  // Filter out common label words that come from the printed form
+  const skipWords = new Set(['ho','va','ten','thi','sinh','ngay','noi','lop','class','khoa',
+    'so','bao','danh','sbd','ma','phach','de','diem','bang','so','chu','giam','khao','ky','ghi','ro']);
+
+  // All candidate "name-like" tokens (length >= 2, not a label, alphabetic)
+  const allTokens = norm.split(/\s+/).filter(t => t.length >= 2 && /^[a-z]+$/.test(t) && !skipWords.has(t));
+  if (allTokens.length === 0) return [];
+
+  const used = new Set(state.results.map(r => r.rowIdx));
+  const scored = cl.rows.map((row, i) => {
+    const sName = normVN(row[cl.nameIdx]);
+    const sWords = sName.split(/\s+/).filter(w => w.length >= 1);
+    if (!sWords.length) return { rowIdx: i, name: row[cl.nameIdx], score: 0, used: used.has(i) };
+
+    // Score each student-name word against the BEST matching candidate token
+    let matchedWords = 0;
+    let lastNameMatched = false; // bonus for matching the LAST word (the actual given name)
+    const lastWord = sWords[sWords.length - 1];
+
+    for (let wi = 0; wi < sWords.length; wi++) {
+      const sw = sWords[wi];
+      let bestScore = 0;
+      for (const ct of allTokens) {
+        let s = 0;
+        if (sw === ct) s = 1.0;
+        else if (sw.length >= 3 && ct.length >= 3) {
+          if (sw.startsWith(ct) || ct.startsWith(sw)) s = 0.75;
+          else if (editDistance(sw, ct) === 1) s = 0.6;
+          else if (editDistance(sw, ct) === 2 && sw.length >= 4) s = 0.4;
+        } else if (sw.length === 2 && ct.length === 2 && sw === ct) s = 1.0;
+        if (s > bestScore) bestScore = s;
+      }
+      if (bestScore >= 0.6) {
+        matchedWords += bestScore;
+        if (wi === sWords.length - 1) lastNameMatched = true;
+      }
+    }
+
+    // Score = fraction of student name's words matched, with bonus for last-name match
+    let score = matchedWords / sWords.length;
+    if (lastNameMatched) score += 0.25;  // strong bonus when the given name (last word in VN) matches
+    if (matchedWords >= 2) score += 0.15; // bonus for matching multiple words
+
+    // Substring full-name match
+    const fullCandidate = allTokens.join(' ');
+    if (sName.length >= 8 && fullCandidate.includes(sName)) score += 0.5;
+
+    score = Math.min(1.5, score);
+    return {
+      rowIdx: i, name: row[cl.nameIdx],
+      cls: cl.classIdx>=0 ? row[cl.classIdx] : '',
+      score, used: used.has(i),
+      matchedWords
+    };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, topN);
+}
+
+// ============================================================
+// KEY IMAGE (OCR-based — for printed answer key tables)
+// ============================================================
+function loadKeyImage(event) {
+  const f = event.target.files[0]; if (!f) return;
+  loadImageFile(f, img => {
+    state.keyImg = img;
+    const box = document.getElementById('keyImgBox');
+    box.style.display = 'block';
+    box.innerHTML = `
+      <div class="canvas-wrap"><canvas id="keyCanvas"></canvas></div>
+      <div id="keyScanOutput" style="margin-top:10px"></div>
+    `;
+    fitImageToCanvas(state.keyImg, document.getElementById('keyCanvas'), 1400);
+    // Auto-run OCR immediately - no clicks required
+    setTimeout(autoScanKeyImage, 300);
+  });
+}
+
+// Detect table grid (rows x cols) on the key image
+function detectAnswerKeyGrid(canvas) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const img = ctx.getImageData(0, 0, w, h).data;
+  const dark = new Uint8Array(w * h);
+  let avg = 0;
+  for (let i = 0; i < img.length; i += 4) avg += (img[i]+img[i+1]+img[i+2])/3;
+  avg /= (w * h);
+  const thresh = Math.max(100, Math.min(180, avg * 0.78));
+  for (let i = 0, j = 0; i < img.length; i += 4, j++) {
+    const gray = (img[i]+img[i+1]+img[i+2])/3;
+    dark[j] = gray < thresh ? 1 : 0;
+  }
+
+  // Horizontal lines (strict: >= 35% of width)
+  const rowSums = new Int32Array(h);
+  for (let y = 0; y < h; y++) {
+    let s = 0;
+    for (let x = 0; x < w; x++) s += dark[y * w + x];
+    rowSums[y] = s;
+  }
+  const hLines = [];
+  let inL = false, lS = 0;
+  for (let y = 0; y < h; y++) {
+    if (rowSums[y] > w * 0.35 && !inL) { inL = true; lS = y; }
+    else if (rowSums[y] <= w * 0.35 && inL) {
+      inL = false;
+      if (y - lS < 18) hLines.push((lS + y - 1) / 2);
+    }
+  }
+
+  // Vertical lines (must span >= 30% of HEIGHT to skip text-width)
+  const colSums = new Int32Array(w);
+  for (let x = 0; x < w; x++) {
+    let s = 0;
+    for (let y = 0; y < h; y++) s += dark[y * w + x];
+    colSums[x] = s;
+  }
+  const rawV = [];
+  inL = false; lS = 0;
+  for (let x = 0; x < w; x++) {
+    if (colSums[x] > h * 0.3 && !inL) { inL = true; lS = x; }
+    else if (colSums[x] <= h * 0.3 && inL) {
+      inL = false;
+      if (x - lS < 18) rawV.push((lS + x - 1) / 2);
+    }
+  }
+  // Cluster nearby vertical lines (within 30px)
+  const vLines = [];
+  for (const l of rawV) {
+    if (vLines.length && l - vLines[vLines.length-1] < 30) {
+      vLines[vLines.length-1] = (vLines[vLines.length-1] + l) / 2;
+    } else vLines.push(l);
+  }
+
+  if (hLines.length < 2 || vLines.length < 2) return null;
+  return { hLines, vLines };
+}
+
+async function ocrCellChar(canvas, x, y, w, h, charWhitelist='ABCD') {
+  // Crop and upscale for better OCR
+  const pad = Math.min(w, h) * 0.1;
+  const tmp = document.createElement('canvas');
+  tmp.width = (w - 2*pad) * 3;
+  tmp.height = (h - 2*pad) * 3;
+  tmp.getContext('2d').drawImage(
+    canvas, x + pad, y + pad, w - 2*pad, h - 2*pad,
+    0, 0, tmp.width, tmp.height
+  );
+  const worker = await getOCRWorker();
+  if (!worker) return '';
+  try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: '10',  // single char
+      tessedit_char_whitelist: charWhitelist
+    });
+    const { data: { text } } = await worker.recognize(tmp);
+    return text.trim().toUpperCase();
+  } catch (e) { return ''; }
+}
+
+async function autoScanKeyImage() {
+  const numQ = parseInt(document.getElementById('numQ').value);
+  const canvas = document.getElementById('keyCanvas');
+  const out = document.getElementById('keyScanOutput');
+  // Reset canvas
+  fitImageToCanvas(state.keyImg, canvas, 1400);
+
+  out.innerHTML = '<div class="info-box"><span class="spinner"></span> Đang phân tích bảng đáp án...</div>';
+
+  // 1. Detect grid
+  const grid = detectAnswerKeyGrid(canvas);
+  if (!grid) {
+    out.innerHTML = '<div class="err-box">⚠ Không tìm được bảng đáp án trong ảnh. Vui lòng dùng tab "Tick đáp án" hoặc "Gõ chuỗi".</div>';
+    return;
+  }
+  const { hLines, vLines } = grid;
+  const numRows = hLines.length - 1;
+  const numCols = vLines.length - 1;
+
+  // Highlight detected grid
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = 'rgba(76,175,80,.7)'; ctx.lineWidth = 2;
+  for (const y of hLines) { ctx.beginPath(); ctx.moveTo(vLines[0], y); ctx.lineTo(vLines[vLines.length-1], y); ctx.stroke(); }
+  for (const x of vLines) { ctx.beginPath(); ctx.moveTo(x, hLines[0]); ctx.lineTo(x, hLines[hLines.length-1]); ctx.stroke(); }
+
+  out.innerHTML = `<div class="info-box"><span class="spinner"></span> Đã detect bảng <b>${numRows} hàng × ${numCols} cột</b>. Đang OCR từng ô (chậm, ~10 giây)...</div>`;
+
+  // 2. OCR each cell. We don't know row-types upfront, so OCR ALL with both whitelists.
+  // For efficiency, OCR each cell once with combined whitelist, then classify.
+  const cellResults = []; // [{row, col, x, y, w, h, char}]
+  for (let r = 0; r < numRows; r++) {
+    for (let c = 0; c < numCols; c++) {
+      const x0 = vLines[c], x1 = vLines[c+1];
+      const y0 = hLines[r], y1 = hLines[r+1];
+      const w = x1 - x0, hCell = y1 - y0;
+      const txt = await ocrCellChar(canvas, x0, y0, w, hCell, 'ABCD0123456789');
+      cellResults.push({ row: r, col: c, x: x0, y: y0, w, h: hCell, char: txt });
+      // Update progress
+      const done = cellResults.length;
+      const total = numRows * numCols;
+      out.innerHTML = `<div class="info-box"><span class="spinner"></span> OCR: ${done}/${total} ô...</div>`;
+    }
+  }
+
+  // 3. Classify each row as number/letter/mixed
+  const rowTypes = [];
+  for (let r = 0; r < numRows; r++) {
+    const cells = cellResults.filter(c => c.row === r);
+    const nums = cells.filter(c => /^\d+$/.test(c.char)).length;
+    const lets = cells.filter(c => /^[ABCD]$/.test(c.char)).length;
+    if (nums > lets && nums >= numCols * 0.5) rowTypes.push('number');
+    else if (lets > nums && lets >= numCols * 0.5) rowTypes.push('letter');
+    else rowTypes.push('other');
+  }
+
+  // 4. Build answers: for each number-letter row pair, match by column
+  const answerMap = {}; // q -> letter
+  for (let r = 0; r < numRows - 1; r++) {
+    if (rowTypes[r] === 'number' && rowTypes[r+1] === 'letter') {
+      const numCells = cellResults.filter(c => c.row === r);
+      const letCells = cellResults.filter(c => c.row === r + 1);
+      for (const nc of numCells) {
+        if (!/^\d+$/.test(nc.char)) continue;
+        const q = parseInt(nc.char);
+        if (q < 1 || q > 100) continue;
+        // Find letter in same column
+        const lc = letCells.find(l => l.col === nc.col);
+        if (lc && /^[ABCD]$/.test(lc.char)) {
+          answerMap[q] = lc.char;
+        }
+      }
+    }
+  }
+
+  // 5. Build final answer array up to numQ
+  const answers = [];
+  for (let q = 1; q <= numQ; q++) answers.push(answerMap[q] || '?');
+  const ok = answers.filter(a => a !== '?').length;
+
+  // Re-draw image clean + OCR overlay
+  fitImageToCanvas(state.keyImg, canvas, 1400);
+  ctx.strokeStyle = 'rgba(76,175,80,.5)'; ctx.lineWidth = 1.5;
+  cellResults.forEach(c => {
+    ctx.strokeRect(c.x, c.y, c.w, c.h);
+    if (/^[ABCD]$/.test(c.char)) {
+      ctx.fillStyle = 'rgba(76,175,80,.15)';
+      ctx.fillRect(c.x, c.y, c.w, c.h);
+    }
+  });
+
+  const code = document.getElementById('newCode').value.trim() || '02';
+  // Save to ticked answers so user can review/edit in tick UI
+  state.tickedAnswers = answers.map(a => a === '?' ? null : a);
+  document.getElementById('newAnswers').value = answers.join('');
+
+  out.innerHTML = `
+    <div class="ok-box">✓ OCR xong: <b>${ok}/${numQ}</b> đáp án được nhận diện.</div>
+    <div class="answer-grid">${answers.map((a, i) => `<div class="answer-cell ${a !== '?' ? 'right' : 'blank'}">${i+1}. ${a}</div>`).join('')}</div>
+    <div style="margin-top:10px" class="flex">
+      <button class="success" onclick="confirmOCRedKey('${code}')">💾 Lưu mã đề ${code}</button>
+      <button class="secondary" onclick="reviewOCRedKey()">✎ Sửa từng câu (mở tab Tick)</button>
+    </div>
+  `;
+}
+
+function confirmOCRedKey(code) {
+  if (!code) { alert('Nhập mã đề'); return; }
+  const arr = state.tickedAnswers.slice();
+  const numQ = parseInt(document.getElementById('numQ').value);
+  while (arr.length < numQ) arr.push(null);
+  state.keys[code] = arr.slice(0, numQ).map(a => a || '?');
+  renderKeyList(); saveState();
+  alert(`✓ Đã lưu mã đề ${code}. Sang tab "Chấm bài" để chấm.`);
+}
+
+function reviewOCRedKey() {
+  document.querySelector('.tab-tab[data-sub="tick"]').click();
+}
+
+// ============================================================
+// STUDENT GRADING - FULLY AUTOMATIC PIPELINE
+// ============================================================
+function loadStudentImages(event) {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+  if (!document.getElementById('gradeCode').value) { alert('Hãy chọn mã đề trước!'); event.target.value=''; return; }
+  state.uploadQueue = files;
+  state.queueIdx = 0;
+  document.getElementById('queueInfo').innerHTML = `<div class="info-box">Hàng đợi: ${files.length} ảnh. Bắt đầu chấm tự động...</div>`;
+  processNextInQueue();
+}
+
+function processNextInQueue() {
+  if (state.queueIdx >= state.uploadQueue.length) {
+    document.getElementById('queueInfo').innerHTML = `<div class="ok-box">✓ Đã hoàn tất tất cả ${state.uploadQueue.length} phiếu! Sang tab "Kết quả" để xem/xuất.</div>`;
+    document.getElementById('stuBox').style.display = 'none';
+    state.uploadQueue = []; state.queueIdx = 0;
+    return;
+  }
+  const file = state.uploadQueue[state.queueIdx];
+  loadImageFile(file, async img => {
+    state.stuImg = img;
+    state.stuPoints = [];
+    document.getElementById('stuBox').style.display = 'block';
+    document.getElementById('queuePos').textContent = `(${state.queueIdx+1}/${state.uploadQueue.length}) — ${file.name}`;
+    document.getElementById('manualCalibBox').style.display = 'none';
+    document.getElementById('autoStatus').innerHTML = '<span class="status-pill busy"><span class="dot"></span><span class="spinner"></span> Đang OCR số câu để định vị grid...</span>';
+    document.getElementById('gradeResult').innerHTML = '';
+
+    const canvas = document.getElementById('stuCanvas');
+    fitImageToCanvas(state.stuImg, canvas, 1400);
+    const numQ = parseInt(document.getElementById('numQ').value);
+
+    // NEW STRATEGY: Per-cell detection (each number = exact column center)
+    let cells = null;
+    let detectMode = null;
+    try {
+      cells = await detectCellsByOCR(canvas, numQ);
+      if (cells) detectMode = 'per-cell-ocr';
+    } catch (e) { console.warn('Per-cell detect error', e); }
+
+    // Fallback to grid-based detection if per-cell fails
+    let points = null;
+    if (!cells) {
+      try {
+        points = await detectGridByOCR(canvas, numQ);
+        if (points) detectMode = 'ocr-anchor';
+      } catch (e) {}
+      if (!points || !validatePoints(points, canvas)) {
+        points = tryAutoDetect(canvas, numQ);
+        if (points) detectMode = 'projection';
+      }
+      if (!points && state.calibTemplate) {
+        points = applyCalibTemplate(canvas);
+        if (points) detectMode = 'template';
+      }
+    }
+
+    if (cells) {
+      state.stuCells = cells;
+      // Show overlay
+      fitImageToCanvas(state.stuImg, canvas, 1400);
+      drawCellsOverlay(canvas, cells, null);
+      setTimeout(() => doAutoGradeCells(canvas, cells, detectMode), 100);
+    } else if (points) {
+      state.stuPoints = points;
+      drawStuCanvas();
+      if (detectMode === 'ocr-anchor' || detectMode === 'projection') saveCalibTemplate(canvas, points);
+      setTimeout(() => doAutoGrade(detectMode), 100);
+    } else {
+      document.getElementById('autoStatus').innerHTML = '<span class="status-pill err"><span class="dot"></span>Tất cả auto-detect thất bại — click thủ công</span>';
+      document.getElementById('manualCalibBox').style.display = 'block';
+      const needed = calibPointsNeeded();
+      document.getElementById('needCount').textContent = needed;
+      document.getElementById('calibHint').innerHTML = `<b>Số điểm cần click:</b> ${needed}.<br>Click góc trên-trái ô <b>câu 1 hàng A</b>, góc dưới-phải ô <b>câu 25 hàng D</b>${needed===4?', tương tự cho khối dưới.':'.'}`;
+    }
+  });
+  document.getElementById('stuBox').scrollIntoView({behavior:'smooth'});
+}
+
+function validatePoints(points, canvas) {
+  if (!points || points.length < 2) return false;
+  const p1 = points[0], p2 = points[1];
+  // Basic sanity checks
+  if (p2.x <= p1.x || p2.y <= p1.y) return false;
+  if (p1.x < 0 || p1.y < 0 || p2.x > canvas.width || p2.y > canvas.height) return false;
+  // Grid should be reasonable size
+  if (p2.x - p1.x < canvas.width * 0.3) return false;
+  if (p2.y - p1.y < 30) return false;
+  return true;
+}
+
+function drawStuCanvas() {
+  const canvas = document.getElementById('stuCanvas');
+  fitImageToCanvas(state.stuImg, canvas, 1400);
+  drawCalibPoints(canvas, state.stuPoints);
+  document.getElementById('clickCount').textContent = state.stuPoints.length;
+}
+
+document.getElementById('stuCanvas').addEventListener('click', e => {
+  // Only allow click when in manual mode (manualCalibBox visible)
+  if (document.getElementById('manualCalibBox').style.display === 'none') return;
+  const needed = calibPointsNeeded();
+  if (state.stuPoints.length >= needed) state.stuPoints = [];
+  state.stuPoints.push(getClickCoords(e, e.target));
+  drawStuCanvas();
+});
+
+function resetCalib() { state.stuPoints = []; drawStuCanvas(); }
+
+function manualGrade() {
+  const needed = calibPointsNeeded();
+  if (state.stuPoints.length !== needed) { alert(`Cần đúng ${needed} điểm`); return; }
+  doAutoGrade('manual');
+}
+
+async function doAutoGrade(mode) {
+  const numQ = parseInt(document.getElementById('numQ').value);
+  const code = document.getElementById('gradeCode').value;
+  if (!code || !state.keys[code]) { alert('Mã đề lỗi'); return; }
+  const correctAns = state.keys[code];
+  const canvas = document.getElementById('stuCanvas');
+  // Re-draw to clear any markings
+  fitImageToCanvas(state.stuImg, canvas, 1400);
+  // Draw points
+  drawCalibPoints(canvas, state.stuPoints);
+  // Detect & score
+  const detected = detectFullSheet(canvas, state.stuPoints, numQ);
+
+  let correct = 0, blank = 0;
+  const detail = [];
+  for (let i = 0; i < numQ; i++) {
+    const stu = detected[i].choice;
+    const key = correctAns[i];
+    const ok = stu === key;
+    if (ok) correct++;
+    if (!stu) blank++;
+    detail.push({ q:i+1, stu, key, ok, blank:!stu });
+  }
+  const maxScore = parseFloat(document.getElementById('maxScore').value);
+  const score = Math.round((correct / numQ) * maxScore * 100) / 100;
+
+  // Crop name region (above first calibration point)
+  const nameY1 = Math.max(20, state.stuPoints[0].y - 30);
+  const nameCanvas = document.createElement('canvas');
+  nameCanvas.width = canvas.width;
+  nameCanvas.height = nameY1;
+  nameCanvas.getContext('2d').drawImage(canvas, 0, 0, canvas.width, nameY1, 0, 0, canvas.width, nameY1);
+  const nameCrop = nameCanvas.toDataURL();
+
+  state.currentSheet = { fileName: state.uploadQueue[state.queueIdx]?.name || 'unknown',
+    score, correct, total: numQ, detail, nameCrop, code, mode };
+
+  const modeLabel = {
+    'ocr-anchor':'⚡ Định vị bằng OCR số câu (chính xác cao nhất)',
+    'projection':'⚡ Detect lưới qua projection profile',
+    'template':'⚡ Dùng template đã lưu',
+    'manual':'✋ Click thủ công',
+    'auto':'⚡ Auto-detect lưới'
+  }[mode] || mode;
+  document.getElementById('autoStatus').innerHTML = `
+    <span class="status-pill ok"><span class="dot"></span>${modeLabel} — Detect xong</span>
+    <span class="status-pill busy" id="ocrStatus"><span class="dot"></span><span class="spinner"></span> Đang OCR tên SV...</span>
+  `;
+
+  // Show result UI with placeholder for suggestions (will fill in after OCR)
+  renderResultUI(score, correct, numQ, blank, detail, nameCrop, code, []);
+
+  // Start OCR in background
+  const text = await ocrCanvas(nameCanvas);
+  const suggestions = fuzzySuggestStudents(text, 5);
+  state.currentSheet.ocrText = text;
+  state.currentSheet.suggestions = suggestions;
+
+  // Update UI
+  document.getElementById('ocrStatus').outerHTML = `<span class="status-pill ok"><span class="dot"></span>OCR xong</span>`;
+  updateSuggestionsUI(suggestions, text);
+}
+
+async function doAutoGradeCells(canvas, cells, mode) {
+  const numQ = parseInt(document.getElementById('numQ').value);
+  const code = document.getElementById('gradeCode').value;
+  if (!code || !state.keys[code]) { alert('Mã đề lỗi'); return; }
+  const correctAns = state.keys[code];
+  // Grade
+  const { choices, cellStates } = gradeFromCells(canvas, cells, numQ);
+  // Re-draw overlay with grade colors
+  fitImageToCanvas(state.stuImg, canvas, 1400);
+  drawCellsOverlay(canvas, cells, { cellStates });
+
+  // Crop name region (above first row of top block)
+  const topY = cells[0] ? cells[0].y : 100;
+  const nameY1 = Math.max(20, topY - 20);
+  const nameCanvas = document.createElement('canvas');
+  nameCanvas.width = canvas.width; nameCanvas.height = nameY1;
+  nameCanvas.getContext('2d').drawImage(canvas, 0, 0, canvas.width, nameY1, 0, 0, canvas.width, nameY1);
+  const nameCrop = nameCanvas.toDataURL();
+
+  // Compute detail
+  let correct = 0, blank = 0;
+  const detail = [];
+  for (let i = 0; i < numQ; i++) {
+    const stu = choices[i];
+    const key = correctAns[i];
+    const ok = stu === key;
+    if (ok) correct++;
+    if (!stu) blank++;
+    detail.push({ q: i + 1, stu, key, ok, blank: !stu });
+  }
+  const maxScore = parseFloat(document.getElementById('maxScore').value);
+  const score = Math.round((correct / numQ) * maxScore * 100) / 100;
+
+  state.currentSheet = {
+    fileName: state.uploadQueue[state.queueIdx]?.name || 'unknown',
+    score, correct, total: numQ, detail, nameCrop, code, mode, choices: [...choices]
+  };
+
+  const modeLabel = {
+    'per-cell-ocr':'⚡ Định vị từng cột riêng bằng OCR (chính xác cao nhất)',
+    'ocr-anchor':'⚡ OCR số câu (linear fit)',
+    'projection':'⚡ Projection profile',
+    'template':'⚡ Template đã lưu',
+  }[mode] || mode;
+  document.getElementById('autoStatus').innerHTML = `
+    <span class="status-pill ok"><span class="dot"></span>${modeLabel}</span>
+    <span class="status-pill busy" id="ocrStatus"><span class="dot"></span><span class="spinner"></span> OCR tên SV...</span>
+    <span class="small" style="color:#666">📦 Detect ${cells.length/4} câu (xanh = từ OCR, cam = nội suy)</span>
+  `;
+
+  renderResultUIEditable(detail, nameCrop, code, numQ, maxScore, [...choices], correctAns);
+
+  // ===== OCR PIPELINE FOR HANDWRITTEN NAME =====
+  // Step 1: Filter to keep only BLUE INK (removes printed form labels)
+  // Step 2: Upscale 2x for sharper handwriting
+  // Step 3: OCR with Vietnamese
+  // Step 4: Fuzzy match against class list
+  const blueFiltered = extractBlueInk(nameCanvas);
+  const upscaled = upscaleCanvas(blueFiltered, 2);
+  // Show the filter result for debugging/transparency
+  state.currentSheet.blueFilterPreview = blueFiltered.toDataURL();
+
+  const text = await ocrCanvas(upscaled, { psm: '6', whitelist: '' });
+  const suggestions = fuzzySuggestStudents(text, 8);
+  state.currentSheet.ocrText = text;
+  state.currentSheet.suggestions = suggestions;
+  const ocrEl = document.getElementById('ocrStatus');
+  if (ocrEl) ocrEl.outerHTML = `<span class="status-pill ok"><span class="dot"></span>OCR tên xong</span>`;
+  // Add blue filter preview to UI
+  const ocrTextBox = document.getElementById('ocrTextBox');
+  if (ocrTextBox) {
+    ocrTextBox.innerHTML = `
+      <div style="margin:6px 0">OCR đọc được: "${(text || '').replace(/\n/g,' ').slice(0,120)}"</div>
+      <details style="margin-top:4px"><summary style="cursor:pointer;font-size:11px;color:#666">📷 Xem ảnh đã lọc mực xanh</summary>
+        <img src="${state.currentSheet.blueFilterPreview}" style="max-width:100%;border:1px solid #ccc;margin-top:5px;background:#fff">
+      </details>
+    `;
+  }
+  updateSuggestionsUI(suggestions, text);
+}
+
+function renderResultUIEditable(detail, nameCrop, code, numQ, maxScore, choices, correctAns) {
+  let html = `
+    <div class="card" style="margin-top:12px;background:#f8fbff;border-color:#bbdefb">
+      <div class="grid-2">
+        <div>
+          <label>Vùng họ tên SV</label>
+          <img class="name-crop" src="${nameCrop}">
+          <div class="stu-picker-wrap" style="margin-top:10px">
+            <label>Sinh viên đã chọn <span style="color:var(--err)">*</span></label>
+            <input type="text" id="stuPicker" placeholder="Đang OCR... hoặc gõ để tìm" autocomplete="off">
+            <div class="stu-suggestions" id="stuSuggestions"></div>
+            <div id="pickedStu" class="small" style="margin-top:5px;color:#555"></div>
+            <div id="ocrTextBox" class="small" style="margin-top:6px;color:#888;font-family:monospace"></div>
+          </div>
+        </div>
+        <div>
+          <div class="flex" id="scoreSummary" style="margin-bottom:8px"></div>
+          <div class="small" style="color:#666;margin-bottom:5px">🖊 Click button A/B/C/D/X để sửa tay nếu app nhận sai. Điểm tự cập nhật.</div>
+          <div id="editableGrade"></div>
+        </div>
+      </div>
+      <div style="margin-top:12px" class="flex">
+        <button class="success big" id="saveResultBtn" onclick="commitResultEditable()" disabled>💾 Lưu & sang phiếu tiếp theo</button>
+        <button class="secondary small" onclick="skipSheet()">⏩ Bỏ qua phiếu này</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('gradeResult').innerHTML = html;
+  state.editableChoices = choices.slice();
+  state.editableCorrect = correctAns.slice();
+  state.editableNumQ = numQ;
+  state.editableMaxScore = maxScore;
+  renderEditableGrade();
+  initStudentPicker();
+}
+
+function renderEditableGrade() {
+  const choices = state.editableChoices;
+  const correct = state.editableCorrect;
+  const numQ = state.editableNumQ;
+  const maxScore = state.editableMaxScore;
+  // Score
+  let nCorrect = 0, nBlank = 0;
+  for (let i = 0; i < numQ; i++) {
+    if (!choices[i]) nBlank++;
+    else if (choices[i] === correct[i]) nCorrect++;
+  }
+  const score = Math.round((nCorrect / numQ) * maxScore * 100) / 100;
+  document.getElementById('scoreSummary').innerHTML = `
+    <span class="badge" style="background:#e8f5e9;color:#1b5e20">Đúng: ${nCorrect}/${numQ}</span>
+    <span class="badge" style="background:#fff3e0;color:#ed6c02">Trống: ${nBlank}</span>
+    <span class="badge" style="background:#ffebee;color:#c62828">Sai: ${numQ-nCorrect-nBlank}</span>
+    <span class="badge" style="background:#e3f2fd;color:#1565c0;font-size:14px">Điểm: ${score}/${maxScore}</span>
+  `;
+  // Build editable grid
+  let html = '<div class="edit-grid">';
+  for (let i = 0; i < numQ; i++) {
+    const cur = choices[i];
+    const key = correct[i];
+    const ok = cur === key;
+    const blank = !cur;
+    const rowCls = blank ? 'blank' : (ok ? 'right' : 'wrong');
+    html += `<div class="edit-row ${rowCls}"><span class="qn">${i+1}.</span>`;
+    for (const c of ['A','B','C','D']) {
+      const sel = cur === c ? 'sel' : '';
+      const corColor = c === key ? 'data-key="1"' : '';
+      html += `<button class="ec ${sel}" ${corColor} onclick="editAnswer(${i}, '${c}')">${c}</button>`;
+    }
+    const blnkSel = blank ? 'sel' : '';
+    html += `<button class="ec blank ${blnkSel}" onclick="editAnswer(${i}, null)">−</button>`;
+    html += `<span class="hint-key">đáp án: <b>${key}</b></span>`;
+    html += '</div>';
+  }
+  html += '</div>';
+  document.getElementById('editableGrade').innerHTML = html;
+}
+
+function editAnswer(qIdx, choice) {
+  state.editableChoices[qIdx] = choice;
+  state.currentSheet.choices = state.editableChoices.slice();
+  // Recompute correct/total/score
+  const correct = state.editableCorrect;
+  const numQ = state.editableNumQ;
+  const maxScore = state.editableMaxScore;
+  let nCorrect = 0;
+  for (let i = 0; i < numQ; i++) {
+    if (state.editableChoices[i] === correct[i]) nCorrect++;
+  }
+  state.currentSheet.correct = nCorrect;
+  state.currentSheet.score = Math.round((nCorrect / numQ) * maxScore * 100) / 100;
+  renderEditableGrade();
+}
+
+function commitResultEditable() {
+  if (state.selectedRowIdx == null) { alert('Hãy chọn SV'); return; }
+  const cl = state.classList;
+  const row = cl.rows[state.selectedRowIdx];
+  const sh = state.currentSheet;
+  const entry = {
+    name: row[cl.nameIdx], class: cl.classIdx>=0 ? row[cl.classIdx] : '',
+    code: sh.code, correct: sh.correct, total: sh.total, score: sh.score,
+    time: new Date().toLocaleString('vi-VN'), rowIdx: state.selectedRowIdx, mode: sh.mode
+  };
+  const exIdx = state.results.findIndex(r => r.rowIdx === state.selectedRowIdx);
+  if (exIdx >= 0) state.results[exIdx] = entry;
+  else state.results.push(entry);
+  saveState(); renderClassTable();
+  state.selectedRowIdx = null;
+  state.queueIdx++;
+  processNextInQueue();
+}
+
+function renderResultUI(score, correct, numQ, blank, detail, nameCrop, code, suggestions) {
+  const maxScore = parseFloat(document.getElementById('maxScore').value);
+  const html = `
+    <div class="card" style="margin-top:12px;background:#f8fbff;border-color:#bbdefb">
+      <div class="grid-2">
+        <div>
+          <label>Vùng họ tên SV (đã cắt từ ảnh)</label>
+          <img class="name-crop" src="${nameCrop}">
+          <div class="stu-picker-wrap" style="margin-top:10px">
+            <label>Sinh viên đã chọn <span style="color:var(--err)">*</span></label>
+            <input type="text" id="stuPicker" placeholder="Đang OCR... hoặc gõ tay để tìm" autocomplete="off">
+            <div class="stu-suggestions" id="stuSuggestions"></div>
+            <div id="pickedStu" class="small" style="margin-top:5px;color:#555"></div>
+            <div id="ocrTextBox" class="small" style="margin-top:6px;color:#888;font-family:monospace"></div>
+          </div>
+        </div>
+        <div>
+          <div class="flex" style="margin-bottom:8px">
+            <span class="badge" style="background:#e8f5e9;color:#1b5e20">Đúng: ${correct}/${numQ}</span>
+            <span class="badge" style="background:#fff3e0;color:#ed6c02">Trống: ${blank}</span>
+            <span class="badge" style="background:#ffebee;color:#c62828">Sai: ${numQ-correct-blank}</span>
+            <span class="badge" style="background:#e3f2fd;color:#1565c0;font-size:14px">Điểm: ${score}/${maxScore}</span>
+          </div>
+          <div class="answer-grid">
+            ${detail.map(d => {
+              const cls = d.blank ? 'blank' : (d.ok ? 'right' : 'wrong');
+              const disp = d.blank ? '—' : d.stu;
+              return `<div class="answer-cell ${cls}" title="${d.ok?'✓':'đáp án: '+d.key}">${d.q}. ${disp} ${d.ok?'✓':d.blank?'':'✗'}</div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px" class="flex">
+        <button class="success big" id="saveResultBtn" onclick="commitResult()" disabled>💾 Lưu & sang phiếu tiếp theo</button>
+        <button class="secondary small" onclick="skipSheet()">⏩ Bỏ qua phiếu này</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('gradeResult').innerHTML = html;
+  initStudentPicker();
+}
+
+function updateSuggestionsUI(suggestions, ocrText) {
+  document.getElementById('ocrTextBox').innerHTML = ocrText ? `OCR: "${ocrText.replace(/\n/g,' ').slice(0,120)}"` : 'OCR không khả dụng';
+  if (!suggestions.length) return;
+
+  // If top suggestion has good confidence, auto-select
+  const top = suggestions[0];
+  const inp = document.getElementById('stuPicker');
+  const sug = document.getElementById('stuSuggestions');
+  if (top.score >= 0.7 && !top.used) {
+    pickStudent(top.rowIdx, top.score);
+    inp.value = top.name + (top.cls?' ('+top.cls+')':'') + ' [auto]';
+  } else {
+    // Show top suggestions in dropdown
+    showSuggestionList(suggestions);
+    inp.placeholder = 'Top match: ' + top.name + ' (' + Math.round(top.score*100) + '%) — chỉnh hoặc gõ để tìm';
+  }
+}
+
+function initStudentPicker() {
+  const inp = document.getElementById('stuPicker');
+  const sug = document.getElementById('stuSuggestions');
+  let highlight = -1;
+  function search(filter) {
+    if (!filter.trim()) {
+      // Show OCR suggestions if available
+      if (state.currentSheet && state.currentSheet.suggestions && state.currentSheet.suggestions.length) {
+        showSuggestionList(state.currentSheet.suggestions);
+        return;
+      }
+      sug.classList.remove('open');
+      return;
+    }
+    const ql = normVN(filter);
+    const cl = state.classList;
+    const used = new Set(state.results.map(r => r.rowIdx));
+    const matches = cl.rows.map((r,i) => {
+      const sName = normVN(r[cl.nameIdx]);
+      return { rowIdx:i, name:r[cl.nameIdx], cls: cl.classIdx>=0?r[cl.classIdx]:'',
+        match: sName.includes(ql), used: used.has(i) };
+    }).filter(x => x.match).slice(0, 20);
+    showSuggestionList(matches.map(m => ({...m, score: 0.8})));
+  }
+  function showSuggestionList(items) {
+    if (!items.length) { sug.innerHTML = '<div class="stu-suggestion">Không tìm thấy</div>'; sug.classList.add('open'); return; }
+    sug.innerHTML = items.map((s, idx) => {
+      const confCls = s.score >= 0.7 ? '' : 'low';
+      const confTxt = s.score !== undefined ? `<span class="conf ${confCls}">${Math.min(99, Math.round(s.score*100))}%</span>` : '';
+      return `<div class="stu-suggestion ${s.used?'used':''} ${idx===highlight?'highlight':''}" data-row="${s.rowIdx}" onclick="pickStudent(${s.rowIdx}, ${s.score||0.8})">
+        <b>${s.name}</b>${confTxt}${s.used?' ⚠ đã chấm':''}
+        ${s.cls ? '<span class="meta">'+s.cls+'</span>' : ''}
+      </div>`;
+    }).join('');
+    sug.classList.add('open');
+  }
+  window.showSuggestionList = showSuggestionList;
+
+  inp.addEventListener('input', () => { highlight = -1; search(inp.value); });
+  inp.addEventListener('focus', () => { if (!inp.value) search(''); });
+  inp.addEventListener('blur', () => setTimeout(() => sug.classList.remove('open'), 200));
+  inp.addEventListener('keydown', e => {
+    const items = sug.querySelectorAll('.stu-suggestion[data-row]');
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlight = Math.min(items.length-1, highlight+1); search(inp.value); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight = Math.max(0, highlight-1); search(inp.value); }
+    else if (e.key === 'Enter' && highlight >= 0) {
+      e.preventDefault();
+      pickStudent(parseInt(items[highlight].dataset.row), 0.8);
+    }
+  });
+}
+
+function pickStudent(rowIdx, confidence=0.8) {
+  state.selectedRowIdx = rowIdx;
+  const cl = state.classList;
+  const row = cl.rows[rowIdx];
+  const name = row[cl.nameIdx];
+  const cls = cl.classIdx >= 0 ? row[cl.classIdx] : '';
+  document.getElementById('stuPicker').value = name + (cls?' ('+cls+')':'');
+  document.getElementById('pickedStu').innerHTML = `✓ Đã chọn: <b>${name}</b>${cls?' - '+cls:''} ${confidence>=0.7?'<span class="badge" style="background:'+(confidence>=0.85?'#e8f5e9':'#fff3e0')+';color:#333">tin cậy '+Math.min(99, Math.round(confidence*100))+'%</span>':''}`;
+  document.getElementById('stuSuggestions').classList.remove('open');
+  document.getElementById('saveResultBtn').disabled = false;
+  if (state.results.some(r => r.rowIdx === rowIdx)) {
+    document.getElementById('pickedStu').innerHTML += ' <span style="color:var(--err)">⚠ SV này đã có điểm — lưu sẽ ghi đè!</span>';
+  }
+}
+
+function commitResult() {
+  if (state.selectedRowIdx == null) { alert('Hãy chọn SV'); return; }
+  const cl = state.classList;
+  const row = cl.rows[state.selectedRowIdx];
+  const sh = state.currentSheet;
+  const entry = {
+    name: row[cl.nameIdx], class: cl.classIdx>=0 ? row[cl.classIdx] : '',
+    code: sh.code, correct: sh.correct, total: sh.total, score: sh.score,
+    time: new Date().toLocaleString('vi-VN'), rowIdx: state.selectedRowIdx, mode: sh.mode
+  };
+  const exIdx = state.results.findIndex(r => r.rowIdx === state.selectedRowIdx);
+  if (exIdx >= 0) state.results[exIdx] = entry;
+  else state.results.push(entry);
+  saveState(); renderClassTable();
+  state.selectedRowIdx = null;
+  state.queueIdx++;
+  processNextInQueue();
+}
+
+function skipSheet() {
+  state.selectedRowIdx = null;
+  state.queueIdx++;
+  processNextInQueue();
+}
+
+// ============================================================
+// RESULTS & EXPORT
+// ============================================================
+function renderResults() {
+  const div = document.getElementById('resultsBox');
+  const cl = state.classList;
+  if (!cl.rows.length) {
+    div.innerHTML = `<div class="hint">Chưa upload danh sách lớp. <a href="javascript:document.querySelector('[data-tab=class]').click()">Vào Tab 2</a>.</div>`;
+    return;
+  }
+  const maxScore = parseFloat(document.getElementById('maxScore').value);
+  const scoreByRow = {};
+  state.results.forEach(r => { scoreByRow[r.rowIdx] = r; });
+  const headers = [...cl.headers, 'Mã đề', 'Số câu đúng', `Điểm /${maxScore}`];
+  let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+  cl.rows.forEach((r, i) => {
+    const sc = scoreByRow[i];
+    const scoreCls = sc ? (sc.score/maxScore >= .7 ? 'score-high' : sc.score/maxScore >= .5 ? 'score-mid' : 'score-low') : '';
+    html += '<tr>' + cl.headers.map((_, j) => `<td>${r[j]||''}</td>`).join('') +
+      `<td>${sc?sc.code:'—'}</td><td>${sc?sc.correct+'/'+sc.total:'—'}</td><td class="${scoreCls}">${sc?sc.score:'—'}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  div.innerHTML = `<div class="small" style="margin-bottom:6px">Đã chấm <b>${state.results.length}/${cl.rows.length}</b> SV</div>` + html;
+}
+function buildExportData() {
+  const cl = state.classList;
+  const maxScore = parseFloat(document.getElementById('maxScore').value);
+  const scoreByRow = {};
+  state.results.forEach(r => { scoreByRow[r.rowIdx] = r; });
+  const headers = [...cl.headers, 'Mã đề', 'Số câu đúng', `Điểm /${maxScore}`, 'Thời gian chấm'];
+  const data = cl.rows.map((r, i) => {
+    const sc = scoreByRow[i];
+    return [...cl.headers.map((_, j) => r[j]||''),
+            sc?sc.code:'', sc?`${sc.correct}/${sc.total}`:'',
+            sc?sc.score:'', sc?sc.time:''];
+  });
+  return { headers, data };
+}
+function exportCSV() {
+  if (!state.classList.rows.length) { alert('Chưa có DS lớp'); return; }
+  const { headers, data } = buildExportData();
+  const csv = '﻿' + [headers, ...data].map(row => row.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  download(csv, 'bang_diem.csv', 'text/csv');
+}
+function exportXLSX() {
+  if (!state.classList.rows.length) { alert('Chưa có DS lớp'); return; }
+  if (typeof XLSX === 'undefined') { alert('Lib Excel chưa tải - dùng CSV.'); return; }
+  const { headers, data } = buildExportData();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  ws['!cols'] = headers.map(h => ({ wch: Math.max(10, String(h).length+2) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Bảng điểm');
+  const ex = document.getElementById('examName').value.replace(/[^\w\s-]/g,'').replace(/\s+/g,'_');
+  XLSX.writeFile(wb, `BangDiem_${ex}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+function copyTSV() {
+  if (!state.classList.rows.length) { alert('Chưa có DS lớp'); return; }
+  const { headers, data } = buildExportData();
+  const tsv = [headers, ...data].map(row => row.join('\t')).join('\n');
+  navigator.clipboard.writeText(tsv).then(() => alert('✓ Đã copy. Paste vào Google Sheet.'));
+}
+function download(content, name, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+}
+function clearResults() {
+  if (confirm('Xoá toàn bộ điểm?')) { state.results = []; saveState(); renderResults(); renderClassTable(); }
+}
+
+// ============================================================
+// PERSISTENCE
+// ============================================================
+function saveState() {
+  try {
+    localStorage.setItem('cham_tn_v3', JSON.stringify({
+      keys: state.keys, results: state.results, classList: state.classList,
+      calibTemplate: state.calibTemplate,
+      examName: document.getElementById('examName').value,
+      numQ: document.getElementById('numQ').value,
+      maxScore: document.getElementById('maxScore').value
+    }));
+  } catch(e) {}
+}
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem('cham_tn_v3') || '{}');
+    if (s.keys) state.keys = s.keys;
+    if (s.results) state.results = s.results;
+    if (s.classList) state.classList = s.classList;
+    if (s.calibTemplate) state.calibTemplate = s.calibTemplate;
+    if (s.examName) document.getElementById('examName').value = s.examName;
+    if (s.numQ) document.getElementById('numQ').value = s.numQ;
+    if (s.maxScore) document.getElementById('maxScore').value = s.maxScore;
+    renderKeyList(); renderTickGrid(); renderModulesStatus();
+    if (state.classList.rows && state.classList.rows.length) {
+      renderClassTable();
+      document.getElementById('classListBox').style.display = 'block';
+      document.getElementById('classListInfo').innerHTML = `<div class="ok-box">✓ Khôi phục ${state.classList.rows.length} SV từ phiên trước.</div>`;
+    }
+  } catch(e) { console.error(e); }
+}
+setInterval(saveState, 3000);
+window.addEventListener('load', loadState);
+</script>
+</body>
+</html>
