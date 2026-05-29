@@ -2901,5 +2901,264 @@ function loadState() {
 setInterval(saveState, 3000);
 window.addEventListener('load', loadState);
 </script>
+<!-- ============================================================
+     CAMERA CAPTURE SNIPPET — chèn vào HTML chính
+     Vị trí paste: NGAY TRƯỚC dòng </body> ở cuối file
+     ============================================================
+     Tính năng:
+     - Tự thêm nút "📸 CHỤP ẢNH" vào tab Chấm bài (cạnh ô upload file)
+     - Mở camera với khung A4 guide căn chỉnh sẵn
+     - Auto chuyển ảnh chụp → pipeline chấm bài tự động
+     - Tuỳ chọn camera trước/sau (mobile có lựa chọn)
+     - HTTPS required (GitHub Pages đã có HTTPS sẵn)
+============================================================ -->
+<script>
+(function setupCameraCapture() {
+  // Đợi DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupCameraCapture);
+    return;
+  }
+
+  // ======== 1. Tìm vị trí ô upload file và thêm nút Chụp ảnh ========
+  const fileInput = document.getElementById('stuFile');
+  if (!fileInput) {
+    console.warn('[Camera] Không tìm thấy #stuFile — bỏ qua setup');
+    return;
+  }
+
+  // Tạo container cho nút chụp ảnh (nằm dưới ô upload)
+  const cameraSection = document.createElement('div');
+  cameraSection.style.cssText = 'margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center';
+  cameraSection.innerHTML = `
+    <button type="button" id="openCameraBtn" class="success" style="font-size:16px;padding:14px 28px;flex:1;min-width:240px">
+      📸 CHỤP ẢNH BẰNG CAMERA
+    </button>
+    <span class="small" style="flex:1;min-width:200px">
+      Hoặc chọn file ảnh ở trên ↑ — App nhận cả 2 cách
+    </span>
+  `;
+  fileInput.parentElement.appendChild(cameraSection);
+
+  // ======== 2. Tạo Camera Modal (full-screen overlay) ========
+  const modal = document.createElement('div');
+  modal.id = 'cameraModal';
+  modal.style.cssText = `
+    display:none;position:fixed;inset:0;z-index:9999;
+    background:rgba(0,0,0,0.96);
+    flex-direction:column;justify-content:center;align-items:center;
+    font-family:'Courier New',monospace;
+  `;
+  modal.innerHTML = `
+    <!-- Video stream từ camera -->
+    <video id="cameraVideo" autoplay playsinline muted
+           style="max-width:100%;max-height:100vh;object-fit:contain;background:#000"></video>
+
+    <!-- Overlay: khung A4 + chỉ dẫn -->
+    <div style="position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:60px 20px 140px">
+      <!-- Tiêu đề trên cùng -->
+      <div style="position:absolute;top:30px;left:0;right:0;text-align:center;color:#fff;font-size:18px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,0.9)">
+        Đặt phiếu A4 vào khung trắng
+      </div>
+
+      <!-- Khung A4 (tỉ lệ 1:1.414) -->
+      <div id="a4Guide" style="
+        width:min(78vw, 580px);
+        aspect-ratio:1/1.414;
+        border:5px dashed rgba(255,255,255,0.95);
+        border-radius:14px;
+        box-shadow:0 0 0 100vmax rgba(0,0,0,0.5);
+        position:relative;
+      ">
+        <!-- 4 góc đậm hơn để thấy rõ -->
+        <div style="position:absolute;top:-3px;left:-3px;width:40px;height:40px;border-top:8px solid #fde68a;border-left:8px solid #fde68a;border-radius:14px 0 0 0"></div>
+        <div style="position:absolute;top:-3px;right:-3px;width:40px;height:40px;border-top:8px solid #fde68a;border-right:8px solid #fde68a;border-radius:0 14px 0 0"></div>
+        <div style="position:absolute;bottom:-3px;left:-3px;width:40px;height:40px;border-bottom:8px solid #fde68a;border-left:8px solid #fde68a;border-radius:0 0 0 14px"></div>
+        <div style="position:absolute;bottom:-3px;right:-3px;width:40px;height:40px;border-bottom:8px solid #fde68a;border-right:8px solid #fde68a;border-radius:0 0 14px 0"></div>
+      </div>
+
+      <!-- Hướng dẫn dưới khung -->
+      <div style="position:absolute;bottom:120px;left:0;right:0;text-align:center;color:#fff;font-size:14px;letter-spacing:0.05em;text-transform:uppercase;line-height:1.7;padding:0 20px;text-shadow:0 2px 6px rgba(0,0,0,0.9);font-weight:600">
+        ✓ Đủ sáng &nbsp;·&nbsp; ✓ Chụp thẳng góc &nbsp;·&nbsp; ✓ Chữ rõ không mờ<br>
+        ✗ Tránh bóng tay &nbsp;·&nbsp; ✗ Không nghiêng &nbsp;·&nbsp; ✗ Không che chữ
+      </div>
+    </div>
+
+    <!-- Thanh nút điều khiển -->
+    <div style="position:absolute;bottom:24px;left:0;right:0;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;padding:0 20px">
+      <button type="button" id="camCancelBtn" style="
+        background:rgba(255,255,255,0.15);color:#fff;
+        border:2px solid rgba(255,255,255,0.45);
+        padding:14px 26px;border-radius:12px;
+        font-family:'Courier New',monospace;font-weight:700;font-size:14px;
+        letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;
+        backdrop-filter:blur(10px)">
+        ✕ Huỷ
+      </button>
+      <button type="button" id="camCaptureBtn" style="
+        background:#fff;color:#000;border:none;
+        padding:18px 42px;border-radius:60px;
+        font-family:'Courier New',monospace;font-weight:700;font-size:18px;
+        letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;
+        box-shadow:0 6px 24px rgba(255,255,255,0.35),0 0 0 4px rgba(255,255,255,0.25)">
+        📸 Chụp
+      </button>
+      <button type="button" id="camSwitchBtn" style="
+        background:rgba(255,255,255,0.15);color:#fff;
+        border:2px solid rgba(255,255,255,0.45);
+        padding:14px 26px;border-radius:12px;
+        font-family:'Courier New',monospace;font-weight:700;font-size:14px;
+        letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;
+        backdrop-filter:blur(10px)">
+        🔄 Đổi camera
+      </button>
+    </div>
+
+    <!-- Thông báo lỗi/status -->
+    <div id="camStatus" style="position:absolute;top:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#fde68a;padding:10px 20px;border-radius:10px;display:none;font-size:14px;letter-spacing:0.04em;text-transform:uppercase;border:1px solid rgba(255,255,255,0.3)"></div>
+  `;
+  document.body.appendChild(modal);
+
+  // ======== 3. Logic camera ========
+  let stream = null;
+  let currentFacing = 'environment'; // 'environment' = camera sau, 'user' = camera trước
+
+  function showStatus(msg, duration = 3000) {
+    const el = document.getElementById('camStatus');
+    el.textContent = msg;
+    el.style.display = 'block';
+    if (duration) setTimeout(() => { el.style.display = 'none'; }, duration);
+  }
+
+  async function startStream(facing) {
+    // Stop stream cũ nếu có
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facing,
+          width: { ideal: 2560 },
+          height: { ideal: 1920 }
+        },
+        audio: false
+      });
+      document.getElementById('cameraVideo').srcObject = stream;
+      currentFacing = facing;
+      // Hiển thị thông tin chất lượng
+      const track = stream.getVideoTracks()[0];
+      const settings = track.getSettings();
+      showStatus(`📷 ${settings.width || '?'}×${settings.height || '?'}px · ${facing === 'environment' ? 'camera sau' : 'camera trước'}`, 2500);
+      return true;
+    } catch (e) {
+      console.error('[Camera] Lỗi:', e);
+      if (e.name === 'NotAllowedError') {
+        alert('⚠ Không được phép dùng camera.\n\nBấm vào icon ổ khoá 🔒 trên thanh URL → Cho phép camera → Reload trang.');
+      } else if (e.name === 'NotFoundError') {
+        alert('⚠ Không tìm thấy camera nào trên thiết bị này.');
+      } else if (e.name === 'OverconstrainedError') {
+        // Camera sau không có → thử camera trước
+        if (facing === 'environment') {
+          return startStream('user');
+        }
+        alert('⚠ Camera không hỗ trợ độ phân giải yêu cầu.');
+      } else {
+        alert('⚠ Không mở được camera: ' + e.message);
+      }
+      return false;
+    }
+  }
+
+  async function openCamera() {
+    // Kiểm tra mã đề đã chọn chưa
+    const codeSel = document.getElementById('gradeCode');
+    if (!codeSel || !codeSel.value) {
+      alert('⚠ Hãy chọn MÃ ĐỀ ở ô bên trái trước khi chụp ảnh!');
+      return;
+    }
+    // Kiểm tra trình duyệt có hỗ trợ
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('⚠ Trình duyệt này không hỗ trợ camera API.\nDùng Chrome / Edge / Safari mới nhất.');
+      return;
+    }
+    modal.style.display = 'flex';
+    const ok = await startStream(currentFacing);
+    if (!ok) modal.style.display = 'none';
+  }
+
+  function closeCamera() {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    modal.style.display = 'none';
+  }
+
+  function captureCamera() {
+    const video = document.getElementById('cameraVideo');
+    if (!video.videoWidth) {
+      showStatus('⚠ Camera chưa sẵn sàng');
+      return;
+    }
+    // Hiệu ứng flash trắng
+    const flash = document.createElement('div');
+    flash.style.cssText = 'position:fixed;inset:0;background:#fff;z-index:10000;opacity:1;transition:opacity 0.3s;pointer-events:none';
+    document.body.appendChild(flash);
+    setTimeout(() => { flash.style.opacity = '0'; }, 50);
+    setTimeout(() => flash.remove(), 400);
+
+    // Tạo canvas chụp ảnh
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+
+    // Convert sang File và đẩy vào input
+    canvas.toBlob(blob => {
+      if (!blob) {
+        alert('Không tạo được ảnh');
+        return;
+      }
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const file = new File([blob], `phieu_${timestamp}.jpg`, { type: 'image/jpeg' });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+      // Trigger event để pipeline grading nhận ảnh
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+      closeCamera();
+    }, 'image/jpeg', 0.95);
+  }
+
+  async function switchCamera() {
+    const newFacing = currentFacing === 'environment' ? 'user' : 'environment';
+    showStatus('🔄 Đang đổi camera...');
+    await startStream(newFacing);
+  }
+
+  // Gắn sự kiện
+  document.getElementById('openCameraBtn').addEventListener('click', openCamera);
+  document.getElementById('camCancelBtn').addEventListener('click', closeCamera);
+  document.getElementById('camCaptureBtn').addEventListener('click', captureCamera);
+  document.getElementById('camSwitchBtn').addEventListener('click', switchCamera);
+
+  // ESC để đóng
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal.style.display !== 'none') closeCamera();
+  });
+
+  // Space hoặc Enter để chụp (khi modal đang mở)
+  document.addEventListener('keydown', e => {
+    if (modal.style.display !== 'none' && (e.code === 'Space' || e.code === 'Enter')) {
+      e.preventDefault();
+      captureCamera();
+    }
+  });
+
+  console.log('[Camera] Module đã sẵn sàng');
+})();
+</script>
 </body>
 </html>
